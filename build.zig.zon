@@ -1,0 +1,20 @@
+.{
+    .name = .Lucens,
+    .version = "0.0.0",
+    .fingerprint = 0xad973382ee457de7,
+    .minimum_zig_version = "0.14.0",
+    .dependencies = .{
+        .Inlucere = .{
+            .path = "../Inlucere", // For development purpose, will be pointed to git repository later
+        },
+        .zglfw = .{
+            .url = "https://github.com/zig-gamedev/zglfw/archive/88552fb644b1da55faf92a9ac13d6455d50349ef.tar.gz",
+            .hash = "zglfw-0.10.0-dev-zgVDNJaZIQA_apqUeB7ucb7MH7HuXyQHSrXOqkqN-lnT",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
