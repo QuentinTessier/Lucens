@@ -1,5 +1,7 @@
 const std = @import("std");
 pub const LucensModule = @import("module.zig").LucensModule;
+pub const WindowingModule = @import("Modules/WindowingModule.zig");
+pub const InlucereModule = @import("Modules/InlucereModule.zig");
 const Scheduler = @import("scheduler.zig");
 
 pub const LucensEngineContext = struct {
@@ -50,19 +52,20 @@ pub const LucensEngineContext = struct {
 var _lucens_general_purpose_allocator: std.heap.DebugAllocator(.{}) = .init;
 var _lucens_engine_context: ?*LucensEngineContext = null;
 
+pub fn CreateLucensEngine() !*LucensEngineContext {
+    std.debug.assert(_lucens_engine_context == null);
+
+    _lucens_engine_context = try _lucens_general_purpose_allocator.allocator().create(LucensEngineContext);
+    _lucens_engine_context.?.allocator = _lucens_general_purpose_allocator.allocator();
+    _lucens_engine_context.?.modules = .empty;
+    _lucens_engine_context.?.scheduler.init(_lucens_general_purpose_allocator.allocator());
+    _lucens_engine_context.?.timer = try std.time.Timer.start();
+    _lucens_engine_context.?.running = true;
+    return _lucens_engine_context.?;
+}
+
 pub fn LucensEngine() *LucensEngineContext {
-    if (_lucens_engine_context == null) {
-        _lucens_engine_context = _lucens_general_purpose_allocator.allocator().create(LucensEngineContext) catch {
-            @panic("Failed to allocate engine, can't recover");
-        };
-        _lucens_engine_context.?.allocator = _lucens_general_purpose_allocator.allocator();
-        _lucens_engine_context.?.modules = .empty;
-        _lucens_engine_context.?.scheduler.init(_lucens_general_purpose_allocator.allocator());
-        _lucens_engine_context.?.timer = std.time.Timer.start() catch {
-            @panic("Failed to initialize timer, can't recover");
-        };
-        _lucens_engine_context.?.running = true;
-    }
+    std.debug.assert(_lucens_engine_context != null);
 
     return _lucens_engine_context.?;
 }
@@ -75,14 +78,41 @@ pub fn ReleaseLucensEngine() void {
 }
 
 pub fn LucensEngineStop() void {
+    std.debug.assert(_lucens_engine_context != null);
+
     _lucens_engine_context.?.running = false;
 }
 
 pub fn LucensEngineRun() anyerror!void {
+    std.debug.assert(_lucens_engine_context != null);
+
     _lucens_engine_context.?.timer.reset();
     while (_lucens_engine_context.?.running) {
         const nano_delta_time = _lucens_engine_context.?.timer.lap();
         _lucens_engine_context.?.delta_time = @as(f32, @floatFromInt(nano_delta_time)) / std.time.ns_per_s;
         try _lucens_engine_context.?.scheduler.runPipeline(_lucens_engine_context.?.delta_time);
     }
+}
+
+pub fn LucensDeltaTime() f32 {
+    std.debug.assert(_lucens_engine_context != null);
+
+    return _lucens_engine_context.?.delta_time;
+}
+
+pub fn LucensDeclareDefault2DPipelineAndModules() anyerror!void {
+    std.debug.assert(_lucens_engine_context != null);
+
+    const context = _lucens_engine_context.?;
+
+    const windowing = try context.registerModule(WindowingModule);
+    const graphics = try context.registerModule(InlucereModule);
+
+    try context.scheduler.createStep("OnFrameStart", .{});
+    try context.scheduler.createStep("OnFrameUpdate", .{});
+    try context.scheduler.createStep("OnFrameEnd", .{});
+
+    try context.scheduler.addTask("OnFrameStart", "WindowingFrameStart", @ptrCast(&WindowingModule.onFrameStart), windowing, 100.0);
+    try context.scheduler.addTask("OnFrameEnd", "WindowingFrameEnd", @ptrCast(&WindowingModule.onFrameEnd), windowing, 100.0);
+    try context.scheduler.addTask("OnFrameStart", "ForceClear", @ptrCast(&InlucereModule.forceClearSwapchain), graphics, 99.0);
 }
