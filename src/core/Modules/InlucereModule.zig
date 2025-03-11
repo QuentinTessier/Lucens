@@ -31,7 +31,7 @@ pub fn deinit(base: *Lucens.LucensModule) void {
 pub fn forceClearSwapchain(base: *Lucens.LucensModule) void {
     const self = base.as(InlucereModule);
     self.device.clearSwapchain(.{
-        .clearColor = .{ 1, 0, 0, 1 },
+        .clearColor = .{ 0, 0, 0, 1 },
         .colorLoadOp = .clear,
     });
 }

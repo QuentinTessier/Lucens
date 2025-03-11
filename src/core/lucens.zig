@@ -2,6 +2,7 @@ const std = @import("std");
 pub const LucensModule = @import("module.zig").LucensModule;
 pub const WindowingModule = @import("Modules/WindowingModule.zig");
 pub const InlucereModule = @import("Modules/InlucereModule.zig");
+pub const Renderer2DModule = @import("Modules/Renderer2DModule.zig");
 const Scheduler = @import("scheduler.zig");
 
 pub const LucensEngineContext = struct {
@@ -107,12 +108,14 @@ pub fn LucensDeclareDefault2DPipelineAndModules() anyerror!void {
 
     const windowing = try context.registerModule(WindowingModule);
     const graphics = try context.registerModule(InlucereModule);
+    const renderer = try context.registerModule(Renderer2DModule);
 
     try context.scheduler.createStep("OnFrameStart", .{});
     try context.scheduler.createStep("OnFrameUpdate", .{});
     try context.scheduler.createStep("OnFrameEnd", .{});
 
     try context.scheduler.addTask("OnFrameStart", "WindowingFrameStart", @ptrCast(&WindowingModule.onFrameStart), windowing, 100.0);
-    try context.scheduler.addTask("OnFrameEnd", "WindowingFrameEnd", @ptrCast(&WindowingModule.onFrameEnd), windowing, 100.0);
+    try context.scheduler.addTask("OnFrameEnd", "DrawSprites", @ptrCast(&Renderer2DModule.tmp_draw), renderer, 1.0);
+    try context.scheduler.addTask("OnFrameEnd", "WindowingFrameEnd", @ptrCast(&WindowingModule.onFrameEnd), windowing, 0.0);
     try context.scheduler.addTask("OnFrameStart", "ForceClear", @ptrCast(&InlucereModule.forceClearSwapchain), graphics, 99.0);
 }

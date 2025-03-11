@@ -19,6 +19,7 @@ pub fn init(base: *Lucens.LucensModule, _: std.mem.Allocator) anyerror!void {
 
     glfw.windowHint(.context_version_major, 4);
     glfw.windowHint(.context_version_minor, 6);
+    glfw.windowHint(.opengl_profile, .opengl_core_profile);
     self.window = try glfw.Window.create(1280, 720, "Lucens - No Customization", null);
     glfw.makeContextCurrent(self.window);
 }

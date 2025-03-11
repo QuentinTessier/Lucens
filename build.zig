@@ -21,6 +21,9 @@ pub fn build(b: *std.Build) void {
 
     exe.linkLibrary(zglfw.artifact("glfw"));
 
+    const zmath = b.dependency("zmath", .{});
+    exe.root_module.addImport("zmath", zmath.module("root"));
+
     const inlucere = b.dependency("Inlucere", .{});
     exe.root_module.addImport("Inlucere", inlucere.module("Inlucere"));
 

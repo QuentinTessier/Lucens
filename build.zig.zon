@@ -11,6 +11,10 @@
             .url = "https://github.com/zig-gamedev/zglfw/archive/88552fb644b1da55faf92a9ac13d6455d50349ef.tar.gz",
             .hash = "zglfw-0.10.0-dev-zgVDNJaZIQA_apqUeB7ucb7MH7HuXyQHSrXOqkqN-lnT",
         },
+        .zmath = .{
+            .url = "https://github.com/zig-gamedev/zmath/archive/1745b6a7a4b9d275c4c948fbbb03568b8c72617d.tar.gz",
+            .hash = "zmath-0.11.0-dev-wjwiva80AwAYXBoySNnvX3FiQqrs8TcupymM9pHauLbN",
+        },
     },
     .paths = .{
         "build.zig",
