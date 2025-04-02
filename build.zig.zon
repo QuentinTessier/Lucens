@@ -15,6 +15,14 @@
             .url = "https://github.com/zig-gamedev/zmath/archive/1745b6a7a4b9d275c4c948fbbb03568b8c72617d.tar.gz",
             .hash = "zmath-0.11.0-dev-wjwiva80AwAYXBoySNnvX3FiQqrs8TcupymM9pHauLbN",
         },
+        .zstbi = .{
+            .url = "git+https://github.com/zig-gamedev/zstbi#4fce0ee7ca94bd42536c136d9a369e647bc55b14",
+            .hash = "zstbi-0.10.0-AAAAAL2VBwCAQYZQ7se9iRdJUp_RPJmhGBgfrIcVA1_c",
+        },
+        .ecez = .{
+            .url = "git+https://github.com/Avokadoen/ecez.git/?ref=HEAD#cf50b75023ac774a2228c469c978e875deea6b5f",
+            .hash = "ecez-0.0.0-X-dkoD5SBQBV3HR9tBNandFMBBMkpo2PukxnOp_xKQQu",
+        },
     },
     .paths = .{
         "build.zig",

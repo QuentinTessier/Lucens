@@ -2,7 +2,7 @@ const std = @import("std");
 pub const LucensModule = @import("module.zig").LucensModule;
 pub const WindowingModule = @import("Modules/WindowingModule.zig");
 pub const InlucereModule = @import("Modules/InlucereModule.zig");
-pub const Renderer2DModule = @import("Modules/Renderer2DModule.zig");
+pub const Renderer2DModule = @import("Modules/2D/RendererModule.zig");
 const Scheduler = @import("scheduler.zig");
 
 pub const LucensEngineContext = struct {

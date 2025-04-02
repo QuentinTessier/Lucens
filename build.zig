@@ -27,6 +27,13 @@ pub fn build(b: *std.Build) void {
     const inlucere = b.dependency("Inlucere", .{});
     exe.root_module.addImport("Inlucere", inlucere.module("Inlucere"));
 
+    const zstbi = b.dependency("zstbi", .{});
+    exe.root_module.addImport("zstbi", zstbi.module("root"));
+
+    const ecez = b.dependency("ecez", .{});
+    const ecez_module = ecez.module("ecez");
+    exe.root_module.addImport("ecez", ecez_module);
+
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);

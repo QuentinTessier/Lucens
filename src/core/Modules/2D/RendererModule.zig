@@ -1,17 +1,18 @@
 const std = @import("std");
-const Lucens = @import("../lucens.zig");
+const Lucens = @import("../../lucens.zig");
 const Inlucere = @import("Inlucere");
-const InlucereModule = @import("InlucereModule.zig");
+const InlucereModule = @import("../InlucereModule.zig");
 const zmath = @import("zmath");
+const zstbi = @import("zstbi");
 
 pub const Renderer2DModule = @This();
 
-pub const PerInstance = struct {
+pub const PerInstance = extern struct {
     position: [2]f32,
     scale: [2]f32,
-    rotation: f32,
     uv_offset_scale: [4]f32,
     color: [4]f32,
+    rotation: f32,
 };
 
 pub const Scene = extern struct {
@@ -40,14 +41,19 @@ indices: Inlucere.Device.StaticBuffer,
 per_instance: Inlucere.Device.DynamicBuffer,
 scene: Inlucere.Device.DynamicBuffer,
 
+spritesheet: Inlucere.Device.Texture2D,
+
 pub const init_base: Lucens.LucensModule = .{
     .name = @typeName(@This()),
     .user_init = &Renderer2DModule.init,
     .user_deinit = &Renderer2DModule.deinit,
 };
 
-pub fn init(base: *Lucens.LucensModule, _: std.mem.Allocator) anyerror!void {
+pub fn init(base: *Lucens.LucensModule, allocator: std.mem.Allocator) anyerror!void {
     const self = base.as(Renderer2DModule);
+
+    zstbi.init(allocator);
+    zstbi.setFlipVerticallyOnLoad(true);
 
     self.inlucere = Lucens.LucensEngine().getModule(InlucereModule, @typeName(InlucereModule)).?;
 
@@ -88,6 +94,27 @@ pub fn init(base: *Lucens.LucensModule, _: std.mem.Allocator) anyerror!void {
         ),
     };
     self.scene = try Inlucere.Device.DynamicBuffer.init("Renderer2D_Scene", std.mem.asBytes(&scene), @sizeOf(Scene));
+
+    var image = try zstbi.Image.loadFromFile("./sheet.png", 3);
+    defer image.deinit();
+
+    self.spritesheet.init(&.{
+        .name = null,
+        .levelCount = 1,
+        .extent = .{ .width = @intCast(image.width), .height = @intCast(image.height) },
+        .format = .rgb8,
+        .data = .{
+            .channels = .rgb,
+            .type = .u8,
+            .offset = .{ .width = 0, .height = 0 },
+            .level = 0,
+            .extent = .{
+                .width = @intCast(image.width),
+                .height = @intCast(image.height),
+            },
+            .data = image.data,
+        },
+    });
 }
 
 pub fn deinit(base: *Lucens.LucensModule) void {
@@ -96,6 +123,8 @@ pub fn deinit(base: *Lucens.LucensModule) void {
     self.indices.deinit();
     self.vertices.deinit();
     self.per_instance.deinit();
+
+    zstbi.deinit();
 }
 
 pub fn draw(self: *Renderer2DModule, instances: []const PerInstance) void {
@@ -110,18 +139,34 @@ pub fn draw(self: *Renderer2DModule, instances: []const PerInstance) void {
         self.inlucere.device.bindUniformBuffer(0, self.scene.toBuffer(), .{
             ._whole = void{},
         });
+        self.inlucere.device.bindTexture(3, self.spritesheet.toTexture());
         self.inlucere.device.drawElements(6, @intCast(instances.len), 0, 0, 0);
     }
 }
 
 pub fn tmp_draw(self: *Renderer2DModule) void {
-    self.draw(&.{.{
-        .position = .{ 0, 0 },
-        .scale = .{ 100, 100 },
-        .rotation = 0,
-        .uv_offset_scale = .{ 0, 0, 0, 0 },
-        .color = .{ 1, 0, 0, 1 },
-    }});
+    const sprite_buffer = comptime blk: {
+        var buffer: []const PerInstance = &[0]PerInstance{};
+        for (0..17) |x| {
+            for (0..8) |y| {
+                const fX = @as(f32, 16.0) * @as(f32, @floatFromInt(x));
+                const fY = @as(f32, 16.0) * @as(f32, @floatFromInt(y));
+
+                buffer = buffer ++ [_]PerInstance{.{
+                    .position = .{ fX, fY },
+                    .scale = .{ 16, 16 },
+                    .rotation = 0,
+                    .uv_offset_scale = .{
+                        272.0 / fX, 128.0 / fY, 272.0 / 16, 128.0 / 16,
+                    },
+                    .color = .{ 1, 1, 1, 1 },
+                }};
+            }
+        }
+        break :blk buffer;
+    };
+
+    self.draw(sprite_buffer);
 }
 
 pub const Renderer2D_VertexShaderSources =
@@ -142,9 +187,9 @@ pub const Renderer2D_VertexShaderSources =
     \\struct PerSpriteInstance {
     \\    vec2 position;
     \\    vec2 scale;
-    \\    float rotation;
     \\    vec4 uv_offset_scale;
     \\    vec4 color;
+    \\    float rotation;
     \\};
     \\
     \\layout(std140, binding = 0) uniform SceneData {
@@ -191,8 +236,11 @@ pub const Renderer2D_FragmentShaderSources =
     \\
     \\layout(location = 0) out vec4 r_Color;
     \\
+    \\layout(binding = 3) uniform sampler2D s_Spritesheet;
+    \\
     \\void main()
     \\{
-    \\    r_Color = f_Color;
+    \\    vec4 t = texture(s_Spritesheet, f_UV);
+    \\    r_Color = t * f_Color;
     \\}
 ;
