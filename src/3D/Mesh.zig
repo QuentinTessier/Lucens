@@ -10,6 +10,13 @@ tangents: [][3]f32,
 texCoords: [][2]f32,
 indices: []u32,
 
+pub const Vertex = extern struct {
+    position: [3]f32,
+    normal: [3]f32,
+    tangent: [3]f32,
+    texCoord: [2]f32,
+};
+
 // Takes ownership of the given arrays
 pub fn init(indices: []u32, vertices: struct {
     positions: [][3]f32,
