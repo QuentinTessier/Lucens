@@ -43,7 +43,8 @@ pub const GPUSinglePoolAllocator = struct {
     gpuMemory: Inlucere.Device.MappedBuffer,
     allocations: std.ArrayListUnmanaged(AllocationInternal) = .{},
 
-    pub fn init(self: *GPUSinglePoolAllocator, name: ?[]const u8, allocator: std.mem.Allocator, poolSize: usize) !void {
+    pub fn init(name: ?[]const u8, allocator: std.mem.Allocator, poolSize: usize) !GPUSinglePoolAllocator {
+        var self: GPUSinglePoolAllocator = undefined;
         const mem = try Inlucere.Device.MappedBuffer.initEmpty(
             name,
             u8,
@@ -60,6 +61,8 @@ pub const GPUSinglePoolAllocator = struct {
             .offset = 0,
             .size = @intCast(poolSize),
         });
+
+        return self;
     }
 
     fn findFreeBlock(self: *const GPUSinglePoolAllocator, requestSize: usize) ?usize {

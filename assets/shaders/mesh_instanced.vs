@@ -14,21 +14,28 @@ out VS_OUT {
     vec4 FragPos;
     vec2 texCoords;
     vec3 normal;
+    flat int instance_id;
 } vs_out;
 
 layout(std140, binding = 0) uniform Scene {
     mat4 view_projection_matrix;
 };
 
+struct Instance {
+    mat4 model_matrix;
+    vec4 color;
+};
+
 layout(std430, binding = 0) readonly buffer Instances {
-    mat4 model_matrices[];
+    Instance instances[];
 };
 
 void main()
 {
-    mat4 model_matrix = model_matrices[gl_InstanceID];
+    Instance instance = instances[gl_InstanceID];
     vs_out.normal = v_Normal;
     vs_out.texCoords = v_TexCoords;
-    vs_out.FragPos = model_matrix * vec4(v_Position, 1.0);
+    vs_out.FragPos = instance.model_matrix * vec4(v_Position, 1.0);
+    vs_out.instance_id = gl_InstanceID;
     gl_Position = view_projection_matrix * vs_out.FragPos;
 }
