@@ -212,16 +212,16 @@ pub fn main() !void {
     } });
     _ = e1;
 
-    // const e2 = try storage.createEntity(.{ Components.MeshID{
-    //     .id = sphere,
-    // }, Components.Transform{
-    //     .matrix = math.translation(-2.0, 0.0, 0.0),
-    // }, Components.Color{
-    //     .r = 0.0,
-    //     .g = 1.0,
-    //     .b = 1.0,
-    // } });
-    // _ = e2;
+    const e2 = try storage.createEntity(.{ Components.MeshID{
+        .id = sphere,
+    }, Components.Transform{
+        .matrix = math.translation(-2.0, 0.0, 0.0),
+    }, Components.Color{
+        .r = 0.0,
+        .g = 1.0,
+        .b = 1.0,
+    } });
+    _ = e2;
 
     const instance_buffer: Inlucere.Device.MappedBuffer = try .initEmpty("instance", Instance, 64, .ExplicitFlushed, .{});
     defer instance_buffer.deinit();
