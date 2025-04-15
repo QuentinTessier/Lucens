@@ -35,6 +35,13 @@ const Components = struct {
     };
 };
 
+const PerInstance = struct {
+    transform: math.Mat,
+    material: u32,
+    min: [2]f32,
+    max: [2]f32,
+};
+
 const Storage = ecez.CreateStorage(.{
     Components.Transform,
     Components.MeshID,

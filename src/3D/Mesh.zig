@@ -1,6 +1,7 @@
 const std = @import("std");
 const zmath = @import("zmath");
 const OBJ = @import("../obj/root.zig");
+const BoundingBox = @import("BoundingBox.zig");
 
 pub const Mesh = @This();
 
@@ -9,6 +10,7 @@ normals: [][3]f32,
 tangents: [][3]f32,
 texCoords: [][2]f32,
 indices: []u32,
+bounds: BoundingBox,
 
 pub const Vertex = extern struct {
     position: [3]f32,
@@ -69,6 +71,7 @@ pub fn initFromObj(allocator: std.mem.Allocator, path: []const u8) !Mesh {
         .texCoords = built.texCoords,
         .indices = built.indices,
         .tangents = try buildTangents(allocator, built.positions, built.texCoords, built.indices),
+        .bounds = computeBounds(built.positions),
     };
 }
 
@@ -121,4 +124,20 @@ pub fn buildTangents(allocator: std.mem.Allocator, positions: [][3]f32, texCoord
     }
 
     return tangents;
+}
+
+fn computeBounds(positions: []const [3]f32) BoundingBox {
+    var min: @Vector(3, f32) = .{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
+    var max: @Vector(3, f32) = .{ std.math.floatMin(f32), std.math.floatMin(f32), std.math.floatMin(f32) };
+
+    for (positions) |position| {
+        min = @min(min, @as(@Vector(3, f32), position));
+        max = @max(max, @as(@Vector(3, f32), position));
+    }
+
+    return .init(min, max);
+}
+
+pub fn getBounds(self: *const Mesh) BoundingBox {
+    return self.bounds;
 }
