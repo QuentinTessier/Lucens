@@ -91,7 +91,8 @@ const Queries = struct {
 const Systems = struct {
     pub fn rotateObjectAtSpeed(queried_transform: *Queries.Transforms, params: *const LoopDrivingParam) void {
         while (queried_transform.next()) |item| {
-            if (item.entity.id == 0) {
+            if (item.entity.id % 2 == 0) {
+                // Only updating odd id :)
                 continue;
             }
             item.transform.rotation[2] += 0.1 * params.delta_time;
@@ -229,25 +230,16 @@ pub fn main() !void {
     });
     defer scheduler.deinit();
 
-    const e1 = try storage.createEntity(.{
-        Components.Transform{
-            .position = .{ 0, 0, 0 },
-            .rotation = .{ 0, 0, 0 },
-            .scale = .{ 0, 0, 0 },
-            .cached_matrix = math.identity(),
-        },
-    });
-    _ = e1;
-
-    const e2 = try storage.createEntity(.{
-        Components.Transform{
-            .position = .{ 0, 0, 0 },
-            .rotation = .{ 0, 0, 0 },
-            .scale = .{ 0, 0, 0 },
-            .cached_matrix = math.identity(),
-        },
-    });
-    _ = e2;
+    for (0..1000) |_| {
+        _ = try storage.createEntity(.{
+            Components.Transform{
+                .position = .{ 0, 0, 0 },
+                .rotation = .{ 0, 0, 0 },
+                .scale = .{ 0, 0, 0 },
+                .cached_matrix = math.identity(),
+            },
+        });
+    }
 
     var last_time = glfw.getTime();
     while (!window.shouldClose()) {
