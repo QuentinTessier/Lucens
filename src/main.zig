@@ -16,6 +16,7 @@ var current_offset: usize = 0;
 var simulated_gpu_transform_buffer: []math.Mat = &.{};
 var indirection_table_entity_to_offset: std.AutoArrayHashMapUnmanaged(ecez.Entity, usize) = .empty;
 var indirection_table_offset_to_entity: std.AutoArrayHashMapUnmanaged(usize, ecez.Entity) = .empty;
+var flushing_array: std.ArrayListUnmanaged(usize) = .empty; // Should be a buffer of GPUAllocation
 
 pub fn get_instance_offset(entity: ecez.Entity) ?usize {
     return indirection_table_entity_to_offset.get(entity);
@@ -117,6 +118,7 @@ const Systems = struct {
         while (collected_dirty_transform.next()) |item| {
             const offset = get_instance_offset(item.entity) orelse add_instance_to_indirection_table(params.allocator, item.entity);
             simulated_gpu_transform_buffer[offset] = item.transform.computeMatrix();
+            flushing_array.append(params.allocator, offset) catch unreachable;
             params.storage.unsetComponents(item.entity, .{Components.DirtyTransform});
         }
     }
@@ -225,6 +227,7 @@ pub fn main() !void {
         indirection_table_entity_to_offset.deinit(allocator);
         indirection_table_offset_to_entity.deinit(allocator);
     }
+    defer flushing_array.deinit(allocator);
 
     glfw.windowHint(.context_version_major, 4);
     glfw.windowHint(.context_version_minor, 6);
@@ -268,6 +271,8 @@ pub fn main() !void {
         const delta_time = @as(f32, @floatCast(current_time - last_time));
         last_time = current_time;
 
+        flushing_array.clearRetainingCapacity();
+
         const loop_params: LoopDrivingParam = .{
             .delta_time = delta_time,
             .storage = &storage,
@@ -280,6 +285,10 @@ pub fn main() !void {
 
         scheduler.dispatchEvent(&storage, .LoopDriving, &loop_params);
         scheduler.waitEvent(.LoopDriving);
+
+        for (flushing_array.items) |flushable_offset| {
+            std.log.info("flushing offset {}", .{flushable_offset});
+        }
 
         window.swapBuffers();
     }
