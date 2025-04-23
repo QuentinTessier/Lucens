@@ -18,6 +18,9 @@ var indirection_table_entity_to_offset: std.AutoArrayHashMapUnmanaged(ecez.Entit
 var indirection_table_offset_to_entity: std.AutoArrayHashMapUnmanaged(usize, ecez.Entity) = .empty;
 var flushing_array: std.ArrayListUnmanaged(usize) = .empty; // Should be a buffer of GPUAllocation
 
+var num_of_update: usize = 0;
+var num_of_draw: usize = 0;
+
 pub fn get_instance_offset(entity: ecez.Entity) ?usize {
     return indirection_table_entity_to_offset.get(entity);
 }
@@ -103,6 +106,7 @@ const Queries = struct {
 
 const Systems = struct {
     pub fn rotateObjectAtSpeed(queried_transform: *Queries.Transforms, params: *const LoopDrivingParam) void {
+        num_of_update += 1;
         while (queried_transform.next()) |item| {
             if (item.entity.id % 2 == 0) {
                 // Only updating odd id :)
@@ -114,6 +118,7 @@ const Systems = struct {
     }
 
     pub fn updateMatrixAndClear(collected_dirty_transform: *Queries.DirtyTransforms, params: *const LoopDrivingParam) void {
+        num_of_draw += 1;
         while (collected_dirty_transform.next()) |item| {
             const offset = get_instance_offset(item.entity) orelse add_instance_to_indirection_table(params.allocator, item.entity);
             simulated_gpu_transform_buffer[offset] = item.transform.computeMatrix();
@@ -278,7 +283,6 @@ pub fn main() !void {
         };
 
         if (accumulated_time >= target_frame_time) {
-            std.log.info("We should render here ! {d}\n", .{accumulated_time});
             accumulated_time = 0;
 
             flushing_array.clearRetainingCapacity();
@@ -297,4 +301,6 @@ pub fn main() !void {
             scheduler.waitIdle();
         }
     }
+
+    std.log.info("Total number of update {}, total number of draw {}", .{ num_of_update, num_of_draw });
 }
