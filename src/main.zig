@@ -49,7 +49,7 @@ const Components = struct {
 
             const matrix = math.mul(translation, math.mul(rotation, scale));
             self.cached_matrix = matrix;
-            return matrix;
+            return self.cached_matrix;
         }
 
         pub fn getMatrix(self: *Transform) math.Mat {
@@ -112,7 +112,7 @@ const Systems = struct {
                 // Only updating odd id :)
                 continue;
             }
-            item.transform.rotation[2] += 0.1 * params.delta_time;
+            item.transform.position[0] += 0.001;
             params.storage.setComponents(item.entity, .{Components.DirtyTransform{}}) catch unreachable;
         }
     }
@@ -254,12 +254,12 @@ pub fn main() !void {
     });
     defer scheduler.deinit();
 
-    for (0..1000) |_| {
+    for (0..2) |_| {
         _ = try storage.createEntity(.{
             Components.Transform{
                 .position = .{ 0, 0, 0 },
                 .rotation = .{ 0, 0, 0 },
-                .scale = .{ 0, 0, 0 },
+                .scale = .{ 1, 1, 1 },
                 .cached_matrix = math.identity(),
             },
         });
@@ -269,6 +269,7 @@ pub fn main() !void {
     const target_framerate: f64 = 60.0;
     const target_frame_time: f64 = 1.0 / target_framerate;
     var accumulated_time: f64 = 0.0;
+
     while (!window.shouldClose()) {
         glfw.pollEvents();
         const current_time = glfw.getTime();
@@ -290,6 +291,10 @@ pub fn main() !void {
             scheduler.waitEvent(.LoopDriving);
             scheduler.dispatchEvent(&storage, .GPU_update_instance, &loop_params);
             scheduler.waitEvent(.GPU_update_instance);
+
+            for (flushing_array.items) |flushable_offset| {
+                std.log.info("{d}", .{simulated_gpu_transform_buffer[flushable_offset]});
+            }
 
             device.clearSwapchain(.{
                 .colorLoadOp = .clear,
