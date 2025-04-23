@@ -24,7 +24,28 @@ const Command = struct {
 var render_command: std.ArrayList(Command) = undefined;
 
 const Components = struct {
-    pub const Transform = struct { matrix: math.Mat };
+    pub const Transform = struct {
+        position: [3]f32,
+        rotation: [3]f32,
+        scale: [3]f32,
+
+        cached_matrix: math.Mat,
+
+        pub fn computeMatrix(self: *Transform) math.Mat {
+            const translation = math.translationV(math.Vec{ self.position[0], self.position[1], self.position[2], 1.0 });
+            const rotation = math.matFromRollPitchYawV(math.Vec{ self.rotation[0], self.rotation[1], self.rotation[2], 1.0 });
+            const scale = math.scalingV(math.Vec{ self.scale[0], self.scale[1], self.scale[2], 1.0 });
+
+            const matrix = math.mul(translation, math.mul(rotation, scale));
+            self.cached_matrix = matrix;
+            return matrix;
+        }
+
+        pub fn getMatrix(self: *Transform) math.Mat {
+            return self.cached_matrix;
+        }
+    };
+    pub const DirtyTransform = struct {};
     pub const Color = struct {
         r: f32,
         g: f32,
@@ -46,6 +67,7 @@ const Storage = ecez.CreateStorage(.{
     Components.Transform,
     Components.MeshID,
     Components.Color,
+    Components.DirtyTransform,
 });
 
 const Queries = struct {
@@ -54,32 +76,49 @@ const Queries = struct {
         transform: Components.Transform,
         color: Components.Color,
     }, .{}, .{});
+
+    pub const Transforms = ecez.Query(struct {
+        entity: ecez.Entity,
+        transform: *Components.Transform,
+    }, .{}, .{});
+
+    pub const DirtyTransforms = ecez.Query(struct {
+        entity: ecez.Entity,
+        transform: *Components.Transform,
+    }, .{Components.DirtyTransform}, .{});
 };
 
 const Systems = struct {
-    pub fn collectRenderableMeshes(collected_meshes: *Queries.CollectMesh) void {
-        render_command.clearRetainingCapacity();
-        while (collected_meshes.next()) |item| {
-            if (!mesh_manager.isGPUResident(item.mesh_id.id)) {
-                _ = mesh_manager.makeGPUResident(item.mesh_id.id) catch @panic("need to figure out how to handle errors in system !");
+    pub fn rotateObjectAtSpeed(queried_transform: *Queries.Transforms, params: *const LoopDrivingParam) void {
+        while (queried_transform.next()) |item| {
+            if (item.entity.id == 0) {
+                continue;
             }
-
-            render_command.append(.{
-                .id = item.mesh_id.id,
-                .transform = item.transform.matrix,
-                .color = .{
-                    item.color.r,
-                    item.color.g,
-                    item.color.b,
-                },
-            }) catch @panic("need to figure out how to handle errors in system !");
+            item.transform.rotation[2] += 0.1 * params.delta_time;
+            std.log.info("Updating transform for {}, set Components.DirtyTransform", .{item.entity});
+            params.storage.setComponents(item.entity, .{Components.DirtyTransform{}}) catch unreachable;
         }
-        std.sort.block(Command, render_command.items, void{}, Command.lessThan);
+    }
+
+    pub fn updateMatrixAndClear(collected_dirty_transform: *Queries.DirtyTransforms, params: *const LoopDrivingParam) void {
+        while (collected_dirty_transform.next()) |item| {
+            _ = item.transform.computeMatrix();
+            std.log.info("unsetting Components.DirtyTransform from entity {}", .{item.entity});
+            params.storage.unsetComponents(item.entity, .{Components.DirtyTransform});
+        }
+    }
+
+    pub fn checkIfAnyDirtyLeft(collected_dirty_transform: *Queries.DirtyTransforms, _: *const LoopDrivingParam) void {
+        while (collected_dirty_transform.next()) |item| {
+            std.log.info("Entity {} is still tagged has dirty", .{item.entity});
+        }
     }
 };
 
 const LoopDriving = ecez.Event("LoopDriving", .{
-    Systems.collectRenderableMeshes,
+    Systems.rotateObjectAtSpeed,
+    Systems.updateMatrixAndClear,
+    Systems.checkIfAnyDirtyLeft,
 });
 
 const Scheduler = ecez.CreateScheduler(.{
@@ -147,6 +186,11 @@ pub fn loadMeshPipeline(allocator: std.mem.Allocator, device: *Inlucere.Device) 
     );
 }
 
+const LoopDrivingParam = struct {
+    delta_time: f32,
+    storage: *Storage,
+};
+
 pub fn main() !void {
     const allocator, const is_debug = gpa: {
         break :gpa switch (builtin.mode) {
@@ -185,111 +229,45 @@ pub fn main() !void {
     });
     defer scheduler.deinit();
 
-    mesh_manager = try .init(allocator);
-    defer mesh_manager.deinit();
-
-    render_command = .init(allocator);
-    defer render_command.deinit();
-
-    const suzanne = try mesh_manager.loadObj("./assets/meshes/suzanne.obj");
-    _ = try mesh_manager.makeGPUResident(suzanne);
-
-    const sphere = try mesh_manager.loadObj("./assets/meshes/sphere.obj");
-    _ = try mesh_manager.makeGPUResident(sphere);
-
-    const scene = math.mul(
-        math.lookAtRh(
-            math.f32x4(10.0, 10.0, 10.0, 1.0),
-            math.f32x4(0.0, 0.0, 0.0, 1.0),
-            math.f32x4(0.0, 1.0, 0.0, 1.0),
-        ),
-        math.perspectiveFovRhGl(0.25 * std.math.pi, 800 / 800, 0.1, 100),
-    );
-    const scene_buffer: Inlucere.Device.DynamicBuffer = try .init("scene", std.mem.asBytes(&scene), @sizeOf(math.Mat));
-    defer scene_buffer.deinit();
-
-    const e1 = try storage.createEntity(.{ Components.MeshID{
-        .id = suzanne,
-    }, Components.Transform{
-        .matrix = math.identity(),
-    }, Components.Color{
-        .r = 1.0,
-        .g = 1.0,
-        .b = 1.0,
-    } });
+    const e1 = try storage.createEntity(.{
+        Components.Transform{
+            .position = .{ 0, 0, 0 },
+            .rotation = .{ 0, 0, 0 },
+            .scale = .{ 0, 0, 0 },
+            .cached_matrix = math.identity(),
+        },
+    });
     _ = e1;
 
-    const e2 = try storage.createEntity(.{ Components.MeshID{
-        .id = sphere,
-    }, Components.Transform{
-        .matrix = math.translation(-2.0, 0.0, 0.0),
-    }, Components.Color{
-        .r = 0.0,
-        .g = 1.0,
-        .b = 1.0,
-    } });
+    const e2 = try storage.createEntity(.{
+        Components.Transform{
+            .position = .{ 0, 0, 0 },
+            .rotation = .{ 0, 0, 0 },
+            .scale = .{ 0, 0, 0 },
+            .cached_matrix = math.identity(),
+        },
+    });
     _ = e2;
 
-    const instance_buffer: Inlucere.Device.MappedBuffer = try .initEmpty("instance", Instance, 64, .ExplicitFlushed, .{});
-    defer instance_buffer.deinit();
-
-    device.bindUniformBuffer(0, scene_buffer.toBuffer(), Inlucere.Device.Buffer.Binding.whole());
-    device.bindStorageBuffer(0, instance_buffer.toBuffer(), Inlucere.Device.Buffer.Binding.whole());
-
-    const pipeline = try loadMeshPipeline(allocator, &device);
-    _ = pipeline;
+    var last_time = glfw.getTime();
     while (!window.shouldClose()) {
         glfw.pollEvents();
+        const current_time = glfw.getTime();
+        const delta_time = @as(f32, @floatCast(current_time - last_time));
+        last_time = current_time;
+
+        const loop_params: LoopDrivingParam = .{
+            .delta_time = delta_time,
+            .storage = &storage,
+        };
 
         device.clearSwapchain(.{
             .colorLoadOp = .clear,
         });
 
-        scheduler.dispatchEvent(&storage, .LoopDriving, void{});
+        scheduler.dispatchEvent(&storage, .LoopDriving, &loop_params);
         scheduler.waitEvent(.LoopDriving);
 
-        if (device.bindGraphicPipeline("DefaultMeshPipeline")) {
-            device.bindElementBuffer(mesh_manager.gpu_indices_allocator.gpuMemory.toBuffer(), .u32);
-            device.bindVertexBuffer(0, mesh_manager.gpu_vertices_allocator.gpuMemory.toBuffer(), 0, @sizeOf(Mesh.Vertex));
-            var i: usize = 0;
-            var current_id = render_command.items[0].id;
-            var offset: usize = 0;
-            var mapped_instance = instance_buffer.cast(Instance);
-            while (i < render_command.items.len) : (i += 1) {
-                if (current_id != render_command.items[i].id) {
-                    instance_buffer.flushRange(0, @intCast(@sizeOf(Instance) * offset));
-                    const binding_info = mesh_manager.getBindingInfo(current_id) orelse @panic("Better error handling");
-                    device.drawElements(
-                        @intCast(@divExact(binding_info.indices_size, @sizeOf(u32))),
-                        @intCast(offset),
-                        0,
-                        @intCast(@divExact(binding_info.indices_offset, @sizeOf(u32))),
-                        0,
-                    );
-                    current_id = render_command.items[i].id;
-                }
-                mapped_instance[offset] = .{
-                    .model_matrix = render_command.items[i].transform,
-                    .color = .{
-                        render_command.items[i].color[0],
-                        render_command.items[i].color[1],
-                        render_command.items[i].color[2],
-                        1.0,
-                    },
-                };
-                offset += 1;
-            }
-
-            instance_buffer.flushRange(0, @intCast(@sizeOf(Instance) * offset));
-            const binding_info = mesh_manager.getBindingInfo(current_id) orelse @panic("Better error handling");
-            device.drawElements(
-                @intCast(@divExact(binding_info.indices_size, @sizeOf(u32))),
-                @intCast(offset),
-                0,
-                @intCast(@divExact(binding_info.indices_offset, @sizeOf(u32))),
-                0,
-            );
-        }
         window.swapBuffers();
     }
 }
