@@ -109,7 +109,6 @@ const Systems = struct {
                 continue;
             }
             item.transform.rotation[2] += 0.1 * params.delta_time;
-            std.log.info("Updating transform for {}, set Components.DirtyTransform", .{item.entity});
             params.storage.setComponents(item.entity, .{Components.DirtyTransform{}}) catch unreachable;
         }
     }
@@ -122,22 +121,19 @@ const Systems = struct {
             params.storage.unsetComponents(item.entity, .{Components.DirtyTransform});
         }
     }
-
-    pub fn checkIfAnyDirtyLeft(collected_dirty_transform: *Queries.DirtyTransforms, _: *const LoopDrivingParam) void {
-        while (collected_dirty_transform.next()) |item| {
-            std.log.info("Entity {} is still tagged has dirty", .{item.entity});
-        }
-    }
 };
 
 const LoopDriving = ecez.Event("LoopDriving", .{
     Systems.rotateObjectAtSpeed,
+});
+
+const GPUUpdateInstance = ecez.Event("GPU_update_instance", .{
     Systems.updateMatrixAndClear,
-    Systems.checkIfAnyDirtyLeft,
 });
 
 const Scheduler = ecez.CreateScheduler(.{
     LoopDriving,
+    GPUUpdateInstance,
 });
 
 const Instance = extern struct {
@@ -265,13 +261,15 @@ pub fn main() !void {
     }
 
     var last_time = glfw.getTime();
+    const target_framerate: f64 = 60.0;
+    const target_frame_time: f64 = 1.0 / target_framerate;
+    var accumulated_time: f64 = 0.0;
     while (!window.shouldClose()) {
         glfw.pollEvents();
         const current_time = glfw.getTime();
         const delta_time = @as(f32, @floatCast(current_time - last_time));
+        accumulated_time += delta_time;
         last_time = current_time;
-
-        flushing_array.clearRetainingCapacity();
 
         const loop_params: LoopDrivingParam = .{
             .delta_time = delta_time,
@@ -279,17 +277,24 @@ pub fn main() !void {
             .allocator = allocator,
         };
 
-        device.clearSwapchain(.{
-            .colorLoadOp = .clear,
-        });
+        if (accumulated_time >= target_frame_time) {
+            std.log.info("We should render here ! {d}\n", .{accumulated_time});
+            accumulated_time = 0;
 
-        scheduler.dispatchEvent(&storage, .LoopDriving, &loop_params);
-        scheduler.waitEvent(.LoopDriving);
+            flushing_array.clearRetainingCapacity();
 
-        for (flushing_array.items) |flushable_offset| {
-            std.log.info("flushing offset {}", .{flushable_offset});
+            scheduler.waitEvent(.LoopDriving);
+            scheduler.dispatchEvent(&storage, .GPU_update_instance, &loop_params);
+            scheduler.waitEvent(.GPU_update_instance);
+
+            device.clearSwapchain(.{
+                .colorLoadOp = .clear,
+            });
+
+            window.swapBuffers();
+        } else {
+            scheduler.dispatchEvent(&storage, .LoopDriving, &loop_params);
+            scheduler.waitIdle();
         }
-
-        window.swapBuffers();
     }
 }
