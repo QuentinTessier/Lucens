@@ -12,16 +12,23 @@ var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
 
 var mesh_manager: MeshManager = undefined;
 
-const Command = struct {
-    id: u32,
-    color: [3]f32,
-    transform: math.Mat,
+var current_offset: usize = 0;
+var simulated_gpu_transform_buffer: []math.Mat = &.{};
+var indirection_table_entity_to_offset: std.AutoArrayHashMapUnmanaged(ecez.Entity, usize) = .empty;
+var indirection_table_offset_to_entity: std.AutoArrayHashMapUnmanaged(usize, ecez.Entity) = .empty;
 
-    pub fn lessThan(_: void, lhs: Command, rhs: Command) bool {
-        return lhs.id < rhs.id;
-    }
-};
-var render_command: std.ArrayList(Command) = undefined;
+pub fn get_instance_offset(entity: ecez.Entity) ?usize {
+    return indirection_table_entity_to_offset.get(entity);
+}
+
+pub fn add_instance_to_indirection_table(allocator: std.mem.Allocator, entity: ecez.Entity) usize {
+    const offset = current_offset;
+    current_offset += 1;
+    indirection_table_entity_to_offset.put(allocator, entity, offset) catch unreachable;
+    indirection_table_offset_to_entity.put(allocator, offset, entity) catch unreachable;
+
+    return offset;
+}
 
 const Components = struct {
     pub const Transform = struct {
@@ -82,6 +89,11 @@ const Queries = struct {
         transform: *Components.Transform,
     }, .{}, .{});
 
+    pub const ConstTransforms = ecez.Query(struct {
+        entity: ecez.Entity,
+        transform: *const Components.Transform,
+    }, .{}, .{});
+
     pub const DirtyTransforms = ecez.Query(struct {
         entity: ecez.Entity,
         transform: *Components.Transform,
@@ -103,8 +115,8 @@ const Systems = struct {
 
     pub fn updateMatrixAndClear(collected_dirty_transform: *Queries.DirtyTransforms, params: *const LoopDrivingParam) void {
         while (collected_dirty_transform.next()) |item| {
-            _ = item.transform.computeMatrix();
-            std.log.info("unsetting Components.DirtyTransform from entity {}", .{item.entity});
+            const offset = get_instance_offset(item.entity) orelse add_instance_to_indirection_table(params.allocator, item.entity);
+            simulated_gpu_transform_buffer[offset] = item.transform.computeMatrix();
             params.storage.unsetComponents(item.entity, .{Components.DirtyTransform});
         }
     }
@@ -190,6 +202,7 @@ pub fn loadMeshPipeline(allocator: std.mem.Allocator, device: *Inlucere.Device) 
 const LoopDrivingParam = struct {
     delta_time: f32,
     storage: *Storage,
+    allocator: std.mem.Allocator,
 };
 
 pub fn main() !void {
@@ -205,6 +218,13 @@ pub fn main() !void {
 
     try glfw.init();
     defer glfw.terminate();
+
+    simulated_gpu_transform_buffer = try allocator.alloc(math.Mat, 1000);
+    defer allocator.free(simulated_gpu_transform_buffer);
+    defer {
+        indirection_table_entity_to_offset.deinit(allocator);
+        indirection_table_offset_to_entity.deinit(allocator);
+    }
 
     glfw.windowHint(.context_version_major, 4);
     glfw.windowHint(.context_version_minor, 6);
@@ -251,6 +271,7 @@ pub fn main() !void {
         const loop_params: LoopDrivingParam = .{
             .delta_time = delta_time,
             .storage = &storage,
+            .allocator = allocator,
         };
 
         device.clearSwapchain(.{
