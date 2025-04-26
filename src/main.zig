@@ -232,17 +232,6 @@ pub fn main() !void {
     var vertices: SinglePoolAllocator = try .init("vertices", allocator, 100_000);
     defer vertices.deinit();
 
-    device.setMemoryBarrier(.{
-        .ClientMappedBufferBarrier = true,
-    });
-
-    const sync = Inlucere.gl.fenceSync(Inlucere.gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
-    Inlucere.gl.waitSync(sync, 0, Inlucere.gl.TIMEOUT_IGNORED);
-
-    std.log.info("Transfer done !", .{});
-
-    device.bindStorageBuffer(0, vertices.gpuMemory.toBuffer(), Inlucere.Device.Buffer.Binding.whole());
-
     var last_time = glfw.getTime();
     while (!window.shouldClose()) {
         glfw.pollEvents();
