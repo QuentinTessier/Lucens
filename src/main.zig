@@ -229,25 +229,19 @@ pub fn main() !void {
     });
     defer scheduler.deinit();
 
-    const e1 = try storage.createEntity(.{
-        Components.Transform{
-            .position = .{ 0, 0, 0 },
-            .rotation = .{ 0, 0, 0 },
-            .scale = .{ 0, 0, 0 },
-            .cached_matrix = math.identity(),
-        },
-    });
-    _ = e1;
+    var vertices: SinglePoolAllocator = try .init("vertices", allocator, 100_000);
+    defer vertices.deinit();
 
-    const e2 = try storage.createEntity(.{
-        Components.Transform{
-            .position = .{ 0, 0, 0 },
-            .rotation = .{ 0, 0, 0 },
-            .scale = .{ 0, 0, 0 },
-            .cached_matrix = math.identity(),
-        },
+    device.setMemoryBarrier(.{
+        .ClientMappedBufferBarrier = true,
     });
-    _ = e2;
+
+    const sync = Inlucere.gl.fenceSync(Inlucere.gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    Inlucere.gl.waitSync(sync, 0, Inlucere.gl.TIMEOUT_IGNORED);
+
+    std.log.info("Transfer done !", .{});
+
+    device.bindStorageBuffer(0, vertices.gpuMemory.toBuffer(), Inlucere.Device.Buffer.Binding.whole());
 
     var last_time = glfw.getTime();
     while (!window.shouldClose()) {
@@ -255,18 +249,19 @@ pub fn main() !void {
         const current_time = glfw.getTime();
         const delta_time = @as(f32, @floatCast(current_time - last_time));
         last_time = current_time;
+        _ = delta_time;
 
-        const loop_params: LoopDrivingParam = .{
-            .delta_time = delta_time,
-            .storage = &storage,
-        };
+        // const loop_params: LoopDrivingParam = .{
+        //     .delta_time = delta_time,
+        //     .storage = &storage,
+        // };
 
         device.clearSwapchain(.{
             .colorLoadOp = .clear,
         });
 
-        scheduler.dispatchEvent(&storage, .LoopDriving, &loop_params);
-        scheduler.waitEvent(.LoopDriving);
+        // scheduler.dispatchEvent(&storage, .LoopDriving, &loop_params);
+        // scheduler.waitEvent(.LoopDriving);
 
         window.swapBuffers();
     }

@@ -13,9 +13,9 @@ indices: []u32,
 bounds: BoundingBox,
 
 pub const Vertex = extern struct {
-    position: [3]f32,
-    normal: [3]f32,
-    tangent: [3]f32,
+    position: [4]f32,
+    normal: [4]f32,
+    tangent: [4]f32,
     texCoord: [2]f32,
 };
 

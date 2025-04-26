@@ -72,9 +72,9 @@ pub fn makeGPUResident(self: *MeshManager, id: u32) !bool {
 
         const local_vertices = vertices.cast(Mesh.Vertex);
         for (local_vertices, mesh.positions, mesh.normals, mesh.tangents, mesh.texCoords) |*vertex, position, normal, tangent, texCoord| {
-            vertex.position = position;
-            vertex.normal = normal;
-            vertex.tangent = tangent;
+            vertex.position = .{ position[0], position[1], position[2], 0.0 };
+            vertex.normal = .{ normal[0], normal[1], normal[2], 0.0 };
+            vertex.tangent = .{ tangent[0], tangent[1], tangent[2], 0.0 };
             vertex.texCoord = texCoord;
         }
         vertices.flush();
