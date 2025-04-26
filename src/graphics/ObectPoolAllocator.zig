@@ -20,9 +20,10 @@ pub fn ObjectPoolAllocator(comptime T: type) type {
         free_slots: std.ArrayListUnmanaged(u32),
 
         pub fn init(allocator: std.mem.Allocator, pool_size: usize) !@This() {
-            const free_slots: std.ArrayListUnmanaged(u32) = .initCapacity(allocator, pool_size);
-            for (free_slots.items, 0..) |*item, i| {
-                item.* = @intCast(i * @sizeOf(T));
+            var free_slots: std.ArrayListUnmanaged(u32) = try .initCapacity(allocator, pool_size);
+            for (0..pool_size) |i| {
+                const index = (pool_size - 1) - i;
+                free_slots.appendAssumeCapacity(@intCast(index * @sizeOf(T)));
             }
 
             return .{
@@ -48,10 +49,13 @@ pub fn ObjectPoolAllocator(comptime T: type) type {
             }
         }
 
-        pub fn destroy(self: *@This(), alloc: Allocation) void {
+        pub fn destroy(self: *@This(), alloc: Allocation) !void {
             if (std.debug.runtime_safety) {
-                std.mem.indexOfScalar(u32, self.free_slots.items, alloc.offset);
-                @panic("Double free on GPU memory");
+                if (std.mem.indexOfScalar(u32, self.free_slots.items, alloc.offset)) |_| {
+                    @panic("Double free on GPU memory");
+                }
+
+                alloc.cast().* = undefined;
             }
 
             try self.free_slots.append(self.allocator, alloc.offset);
