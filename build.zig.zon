@@ -23,6 +23,10 @@
             .url = "git+https://github.com/Avokadoen/ecez.git/?ref=HEAD#cf50b75023ac774a2228c469c978e875deea6b5f",
             .hash = "ecez-0.0.0-X-dkoD5SBQBV3HR9tBNandFMBBMkpo2PukxnOp_xKQQu",
         },
+        .VkRadixSort = .{
+            .url = "git+https://github.com/MircoWerner/VkRadixSort#96178e0515292f96de112fea0c1b469416388c7e",
+            .hash = "N-V-__8AAAFsDAA_D55xFm9DL12b1dC-5seIGuKXTVEvxXue",
+        },
     },
     .paths = .{
         "build.zig",
