@@ -3,7 +3,6 @@ const Inlucere = @import("Inlucere");
 const Mesh = @import("Mesh.zig");
 const SinglePoolAllocator = @import("../graphics/SinglePoolAllocator.zig").GPUSinglePoolAllocator;
 const AllocationHandle = @import("../graphics/SinglePoolAllocator.zig").AllocationHandle;
-const ecez = @import("ecez");
 
 pub const MeshManager = @This();
 

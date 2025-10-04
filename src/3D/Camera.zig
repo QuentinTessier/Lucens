@@ -13,6 +13,7 @@ pub fn getView(self: *const Camera) math.Mat {
         self.position[0] + math.sin(self.theta) * math.sin(self.psi),
         self.position[1] + math.cos(self.psi),
         self.position[2] + math.cos(self.theta) * math.sin(self.psi),
+        0.0,
     };
     const up: @Vector(4, f32) = .{ 0, 1, 0, 0 };
     return math.lookAtRh(eye, focus, up);

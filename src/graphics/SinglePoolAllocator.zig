@@ -41,7 +41,7 @@ pub const GPUSinglePoolAllocator = struct {
 
     capacity: usize,
     gpuMemory: Inlucere.Device.MappedBuffer,
-    allocations: std.ArrayListUnmanaged(AllocationInternal) = .{},
+    allocations: std.array_list.Aligned(AllocationInternal, null) = .{},
 
     pub fn init(name: ?[]const u8, allocator: std.mem.Allocator, poolSize: usize) !GPUSinglePoolAllocator {
         var self: GPUSinglePoolAllocator = undefined;

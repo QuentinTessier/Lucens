@@ -8,25 +8,25 @@
             .path = "../Inlucere", // For development purpose, will be pointed to git repository later
         },
         .zglfw = .{
-            .url = "https://github.com/zig-gamedev/zglfw/archive/88552fb644b1da55faf92a9ac13d6455d50349ef.tar.gz",
-            .hash = "zglfw-0.10.0-dev-zgVDNJaZIQA_apqUeB7ucb7MH7HuXyQHSrXOqkqN-lnT",
+            .url = "git+https://github.com/zig-gamedev/zglfw#82da052ccace5690f323876046d3062c9c573283",
+            .hash = "zglfw-0.10.0-dev-zgVDNK6oIQAamIbSG6JGubpBiQSxrv_lymMIsub2DBNa",
         },
         .zmath = .{
-            .url = "https://github.com/zig-gamedev/zmath/archive/1745b6a7a4b9d275c4c948fbbb03568b8c72617d.tar.gz",
-            .hash = "zmath-0.11.0-dev-wjwiva80AwAYXBoySNnvX3FiQqrs8TcupymM9pHauLbN",
+            .url = "git+https://github.com/zig-gamedev/zmath#3a5955b2b72cd081563fbb084eff05bffd1e3fbb",
+            .hash = "zmath-0.11.0-dev-wjwivdMsAwD-xaLj76YHUq3t9JDH-X16xuMTmnDzqbu2",
         },
-        .zstbi = .{
-            .url = "git+https://github.com/zig-gamedev/zstbi#4fce0ee7ca94bd42536c136d9a369e647bc55b14",
-            .hash = "zstbi-0.10.0-AAAAAL2VBwCAQYZQ7se9iRdJUp_RPJmhGBgfrIcVA1_c",
-        },
-        .ecez = .{
-            .url = "git+https://github.com/Avokadoen/ecez.git/?ref=HEAD#cf50b75023ac774a2228c469c978e875deea6b5f",
-            .hash = "ecez-0.0.0-X-dkoD5SBQBV3HR9tBNandFMBBMkpo2PukxnOp_xKQQu",
-        },
-        .VkRadixSort = .{
-            .url = "git+https://github.com/MircoWerner/VkRadixSort#96178e0515292f96de112fea0c1b469416388c7e",
-            .hash = "N-V-__8AAAFsDAA_D55xFm9DL12b1dC-5seIGuKXTVEvxXue",
-        },
+        // .zstbi = .{
+        //     .url = "git+https://github.com/zig-gamedev/zstbi#4fce0ee7ca94bd42536c136d9a369e647bc55b14",
+        //     .hash = "zstbi-0.10.0-AAAAAL2VBwCAQYZQ7se9iRdJUp_RPJmhGBgfrIcVA1_c",
+        // },
+        // .ecez = .{
+        //     .url = "git+https://github.com/Avokadoen/ecez.git/?ref=HEAD#cf50b75023ac774a2228c469c978e875deea6b5f",
+        //     .hash = "ecez-0.0.0-X-dkoD5SBQBV3HR9tBNandFMBBMkpo2PukxnOp_xKQQu",
+        // },
+        // .VkRadixSort = .{
+        //     .url = "git+https://github.com/MircoWerner/VkRadixSort#96178e0515292f96de112fea0c1b469416388c7e",
+        //     .hash = "N-V-__8AAAFsDAA_D55xFm9DL12b1dC-5seIGuKXTVEvxXue",
+        // },
     },
     .paths = .{
         "build.zig",

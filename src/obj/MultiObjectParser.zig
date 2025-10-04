@@ -37,15 +37,15 @@ pub const Parser = @This();
 
 const DataObject = struct {
     name: []u8,
-    triangles: std.ArrayList(Triangle),
+    triangles: std.array_list.AlignedManaged(Triangle, null),
 };
 
 const DataStorage = struct {
     allocator: std.mem.Allocator,
-    positions: std.ArrayList([3]f32),
-    texcoords: std.ArrayList([2]f32),
-    normals: std.ArrayList([3]f32),
-    objects: std.ArrayList(DataObject),
+    positions: std.array_list.AlignedManaged([3]f32, null),
+    texcoords: std.array_list.AlignedManaged([2]f32, null),
+    normals: std.array_list.AlignedManaged([3]f32, null),
+    objects: std.array_list.AlignedManaged(DataObject, null),
     currentObject: ?*DataObject,
 };
 
@@ -146,7 +146,7 @@ fn parseObject(result: *DataStorage, line: []const u8) anyerror!void {
     const newCurrentObject = try result.objects.addOne();
     newCurrentObject.* = .{
         .name = try result.allocator.dupe(u8, line),
-        .triangles = std.ArrayList(Triangle).init(result.allocator),
+        .triangles = std.array_list.AlignedManaged(Triangle, null).init(result.allocator),
     };
     result.currentObject = newCurrentObject;
 }
@@ -165,10 +165,10 @@ pub fn parse(allocator: std.mem.Allocator, content: []const u8) !ParseResult {
     var ite = std.mem.splitSequence(u8, content, delimiter);
     var storage: DataStorage = .{
         .allocator = allocator,
-        .positions = std.ArrayList([3]f32).init(allocator),
-        .texcoords = std.ArrayList([2]f32).init(allocator),
-        .normals = std.ArrayList([3]f32).init(allocator),
-        .objects = std.ArrayList(DataObject).init(allocator),
+        .positions = .init(allocator),
+        .texcoords = .init(allocator),
+        .normals = .init(allocator),
+        .objects = .init(allocator),
         .currentObject = null,
     };
     defer storage.objects.deinit();
