@@ -222,6 +222,18 @@ pub fn main() !void {
         .binding_info = context.mesh_manager.getBindingInfo(suzanne).?,
     });
 
+    try context.mesh_pipeline.add_instance(allocator, suzanne, &.{
+        .transform = zmath.translation(2, 0, 2),
+        .material_id = 0,
+        .binding_info = context.mesh_manager.getBindingInfo(suzanne).?,
+    });
+
+    try context.mesh_pipeline.add_instance(allocator, suzanne, &.{
+        .transform = zmath.translation(2, 0, -2),
+        .material_id = 0,
+        .binding_info = context.mesh_manager.getBindingInfo(suzanne).?,
+    });
+
     try context.mesh_pipeline.add_instance(allocator, sphere, &.{
         .transform = zmath.identity(),
         .material_id = 1,
@@ -242,6 +254,18 @@ pub fn main() !void {
 
     try context.mesh_pipeline.add_instance(allocator, cube, &.{
         .transform = zmath.translation(-2, 0, 0),
+        .material_id = 1,
+        .binding_info = context.mesh_manager.getBindingInfo(cube).?,
+    });
+
+    try context.mesh_pipeline.add_instance(allocator, cube, &.{
+        .transform = zmath.translation(-2, 0, 2),
+        .material_id = 1,
+        .binding_info = context.mesh_manager.getBindingInfo(cube).?,
+    });
+
+    try context.mesh_pipeline.add_instance(allocator, cube, &.{
+        .transform = zmath.translation(-2, 0, -2),
         .material_id = 1,
         .binding_info = context.mesh_manager.getBindingInfo(cube).?,
     });
