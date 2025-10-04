@@ -259,7 +259,7 @@ pub fn main() !void {
     });
 
     try context.mesh_pipeline.add_instance(allocator, cube, &.{
-        .transform = zmath.mul(zmath.rotationY(std.math.degreesToRadians(45)), zmath.translation(-2, 0, 2)),
+        .transform = zmath.mul(zmath.scaling(0.5, 0.5, 0.5), zmath.translation(-2, 0, 2)),
         .material_id = 1,
         .binding_info = context.mesh_manager.getBindingInfo(cube).?,
     });
