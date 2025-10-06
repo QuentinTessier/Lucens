@@ -8,6 +8,7 @@ const MeshManager = @import("3D/MeshManager.zig");
 const Camera = @import("3D/Camera.zig");
 const zmath = @import("zmath");
 const MeshPipeline = @import("mesh_pipeline.zig");
+const MaterialSystem = @import("material_system.zig");
 
 var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
 
@@ -21,15 +22,6 @@ const SceneUniform = extern struct {
     proj: zmath.Mat,
     view_pos: [4]f32,
 };
-
-pub fn translation(x: f32, y: f32, z: f32) zmath.Mat {
-    return .{
-        zmath.f32x4(1.0, 0.0, 0.0, x),
-        zmath.f32x4(0.0, 1.0, 0.0, y),
-        zmath.f32x4(0.0, 0.0, 1.0, z),
-        zmath.f32x4(0.0, 0.0, 0.0, 1.0),
-    };
-}
 
 fn read_file(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
     var file = try std.fs.cwd().openFile(path, .{});
@@ -94,6 +86,7 @@ fn upload_scene_data(buffer: u32, width: f32, height: f32, fov: f32, camera: *co
 pub const Context = struct {
     mesh_manager: MeshManager,
     mesh_pipeline: MeshPipeline,
+    material_system: MaterialSystem,
 
     scene_uniform_buffer: Inlucere.Device.MappedBuffer,
     light_buffer: Inlucere.Device.MappedBuffer,
@@ -107,7 +100,7 @@ pub const Context = struct {
             n: [4]u32 = .{ 2, 0, 0, 0 },
             cpu_lights: [2][2][4]f32 = .{
                 .{ .{ 5, 0, 0, 1 }, .{ 1, 1, 1, 1 } },
-                .{ .{ 0, 5, 0, 1 }, .{ 1, 0, 0, 1 } },
+                .{ .{ 0, 5, 0, 1 }, .{ 1, 1, 1, 1 } },
             },
         };
 
@@ -146,11 +139,13 @@ pub fn main() !void {
     var context: Context = .{
         .mesh_manager = try .init(allocator),
         .mesh_pipeline = undefined,
+        .material_system = undefined,
         .scene_uniform_buffer = undefined,
         .light_buffer = undefined,
     };
     defer {
         context.mesh_manager.deinit();
+        context.material_system.deinit(allocator);
         context.mesh_pipeline.deinit(allocator);
         context.light_buffer.deinit();
         context.scene_uniform_buffer.deinit();
@@ -210,67 +205,85 @@ pub fn main() !void {
         .scene_uniform_buffer = context.scene_uniform_buffer.toBuffer(),
         .light_buffer = context.light_buffer.toBuffer(),
     });
+    context.material_system = try .init();
 
     gl.clearColor(0, 0, 0, 1);
     gl.enable(gl.DEPTH_TEST);
 
     var timer = try std.time.Timer.start();
 
+    const purple = try context.material_system.add_mat(allocator, .{
+        .color = .{ 1, 0, 1, 1 },
+    });
+    const purple_slot = try context.material_system.make_resident(purple);
+    std.log.info("Binding Purple to slot {}", .{purple_slot});
+    const blue = try context.material_system.add_mat(allocator, .{
+        .color = .{ 0, 0, 1, 1 },
+    });
+    const blue_slot = try context.material_system.make_resident(blue);
+    std.log.info("Binding Blue to slot {}", .{blue_slot});
+    const green = try context.material_system.add_mat(allocator, .{
+        .color = .{ 0, 1, 0, 1 },
+    });
+    const green_slot = try context.material_system.make_resident(green);
+    std.log.info("Binding Green to slot {}", .{green_slot});
+
     try context.mesh_pipeline.add_instance(allocator, suzanne, &.{
         .transform = zmath.translation(2, 0, 0),
-        .material_id = 0,
+        .material_id = @intCast(purple_slot),
         .binding_info = context.mesh_manager.getBindingInfo(suzanne).?,
     });
 
     try context.mesh_pipeline.add_instance(allocator, suzanne, &.{
         .transform = zmath.translation(2, 0, 2),
-        .material_id = 0,
+        .material_id = @intCast(blue_slot),
         .binding_info = context.mesh_manager.getBindingInfo(suzanne).?,
     });
 
     try context.mesh_pipeline.add_instance(allocator, suzanne, &.{
         .transform = zmath.translation(2, 0, -2),
-        .material_id = 0,
+        .material_id = @intCast(green_slot),
         .binding_info = context.mesh_manager.getBindingInfo(suzanne).?,
     });
 
     try context.mesh_pipeline.add_instance(allocator, sphere, &.{
         .transform = zmath.identity(),
-        .material_id = 1,
+        .material_id = @intCast(purple_slot),
         .binding_info = context.mesh_manager.getBindingInfo(sphere).?,
     });
 
     try context.mesh_pipeline.add_instance(allocator, sphere, &.{
         .transform = zmath.translation(0, 0, 2),
-        .material_id = 1,
+        .material_id = @intCast(blue_slot),
         .binding_info = context.mesh_manager.getBindingInfo(sphere).?,
     });
 
     try context.mesh_pipeline.add_instance(allocator, sphere, &.{
         .transform = zmath.translation(0, 0, -2),
-        .material_id = 1,
+        .material_id = @intCast(green_slot),
         .binding_info = context.mesh_manager.getBindingInfo(sphere).?,
     });
 
     try context.mesh_pipeline.add_instance(allocator, cube, &.{
         .transform = zmath.translation(-2, 0, 0),
-        .material_id = 1,
+        .material_id = @intCast(purple_slot),
         .binding_info = context.mesh_manager.getBindingInfo(cube).?,
     });
 
     try context.mesh_pipeline.add_instance(allocator, cube, &.{
         .transform = zmath.mul(zmath.scaling(0.5, 0.5, 0.5), zmath.translation(-2, 0, 2)),
-        .material_id = 1,
+        .material_id = @intCast(blue_slot),
         .binding_info = context.mesh_manager.getBindingInfo(cube).?,
     });
 
     try context.mesh_pipeline.add_instance(allocator, cube, &.{
         .transform = zmath.mul(zmath.rotationZ(std.math.degreesToRadians(45)), zmath.translation(-2, 0, -2)),
-        .material_id = 1,
+        .material_id = @intCast(green_slot),
         .binding_info = context.mesh_manager.getBindingInfo(cube).?,
     });
 
     context.mesh_pipeline.bind();
+    gl.bindBufferBase(gl.SHADER_STORAGE_BUFFER, 4, context.material_system.buffer.handle);
     while (!window.shouldClose()) {
         glfw.pollEvents();
 

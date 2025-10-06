@@ -6,6 +6,10 @@ const Mesh = @import("3D/Mesh.zig");
 
 pub const MeshPipeline = @This();
 
+pub const Material = extern struct {
+    color: [4]f32,
+};
+
 pub const MeshInstance = extern struct {
     model_to_world: zmath.Mat,
     world_to_model: zmath.Mat,
@@ -76,7 +80,7 @@ pub fn init(allocator: std.mem.Allocator, user_data: *const UserData) !MeshPipel
     const main_vertex_sources = try read_file(allocator, "./assets/shaders/instanced_mesh_standard.vs");
     defer allocator.free(main_vertex_sources);
 
-    const main_fragment_sources = try read_file(allocator, "./assets/shaders/solid_specular_color.fs");
+    const main_fragment_sources = try read_file(allocator, "./assets/shaders/material_color.fs");
     defer allocator.free(main_fragment_sources);
 
     try program.init(&.{
@@ -209,7 +213,7 @@ pub fn draw(self: *MeshPipeline) void {
                 per_instance_slice[@as(usize, @intCast(current_index)) + i] = MeshInstance{
                     .model_to_world = instance.transform,
                     .world_to_model = zmath.transpose(zmath.inverse(instance.transform)),
-                    .material_id = @intCast(i),
+                    .material_id = instance.material_id,
                 };
                 instance_count += 1;
             }
@@ -222,15 +226,4 @@ pub fn draw(self: *MeshPipeline) void {
     }
 
     Inlucere.gl.multiDrawElementsIndirect(Inlucere.gl.TRIANGLES, Inlucere.gl.UNSIGNED_INT, null, @intCast(self.mesh_instances.count()), @sizeOf(DrawElementsIndirectCommand));
-    // const mesh_data = self.mesh_instances.getPtr(0) orelse @panic("error");
-
-    // Inlucere.gl.drawElementsInstancedBaseVertexBaseInstance(
-    //     Inlucere.gl.TRIANGLES,
-    //     @intCast(@divExact(mesh_data.bind_info.indices_size, @sizeOf(u32))),
-    //     Inlucere.gl.UNSIGNED_INT,
-    //     @ptrFromInt(mesh_data.bind_info.indices_offset),
-    //     @intCast(mesh_data.instances.items.len),
-    //     @intCast(@divExact(mesh_data.bind_info.vertices_offset, @sizeOf(Mesh.Vertex))),
-    //     0,
-    // );
 }
