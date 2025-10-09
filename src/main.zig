@@ -9,6 +9,7 @@ const Camera = @import("3D/Camera.zig");
 const zmath = @import("zmath");
 const MeshPipeline = @import("mesh_pipeline.zig");
 const MaterialSystem = @import("material_system.zig");
+const LightSystem = @import("light_system.zig");
 
 var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
 
@@ -31,6 +32,14 @@ fn read_file(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
 
     return try file.readToEndAlloc(allocator, size);
 }
+
+const LightBuffer = extern struct {
+    n: [4]u32 = .{ 1, 0, 0, 0 },
+    cpu_lights: [2][2][4]f32 = .{
+        .{ .{ 5, 0, 0, 1 }, .{ 1, 1, 1, 1 } },
+        .{ .{ 0, 5, 0, 1 }, .{ 1, 1, 1, 1 } },
+    },
+};
 
 pub const UploadedMesh = struct {
     vertices: u32,
@@ -87,6 +96,7 @@ pub const Context = struct {
     mesh_manager: MeshManager,
     mesh_pipeline: MeshPipeline,
     material_system: MaterialSystem,
+    light_system: LightSystem,
 
     scene_uniform_buffer: Inlucere.Device.MappedBuffer,
     light_buffer: Inlucere.Device.MappedBuffer,
@@ -95,18 +105,8 @@ pub const Context = struct {
         self.scene_uniform_buffer = try .init("scene", SceneUniform, &[1]SceneUniform{scene_uniform_data.*}, .ExplicitFlushed, .{});
     }
 
-    pub fn load_light_buffer(self: *Context) !void {
-        const LightBuffer = extern struct {
-            n: [4]u32 = .{ 2, 0, 0, 0 },
-            cpu_lights: [2][2][4]f32 = .{
-                .{ .{ 5, 0, 0, 1 }, .{ 1, 1, 1, 1 } },
-                .{ .{ 0, 5, 0, 1 }, .{ 1, 1, 1, 1 } },
-            },
-        };
-
-        const light_buffer = LightBuffer{};
-
-        self.light_buffer = try .init("lights", LightBuffer, &[1]LightBuffer{light_buffer}, .ExplicitFlushed, .{});
+    pub fn load_light_buffer(self: *Context, light_buffer: *const LightBuffer) !void {
+        self.light_buffer = try .init("lights", LightBuffer, &[1]LightBuffer{light_buffer.*}, .ExplicitFlushed, .{});
     }
 };
 
@@ -139,6 +139,7 @@ pub fn main() !void {
     var context: Context = .{
         .mesh_manager = try .init(allocator),
         .mesh_pipeline = undefined,
+        .light_system = undefined,
         .material_system = undefined,
         .scene_uniform_buffer = undefined,
         .light_buffer = undefined,
@@ -147,7 +148,7 @@ pub fn main() !void {
         context.mesh_manager.deinit();
         context.material_system.deinit(allocator);
         context.mesh_pipeline.deinit(allocator);
-        context.light_buffer.deinit();
+        context.light_system.deinit(allocator);
         context.scene_uniform_buffer.deinit();
     }
 
@@ -163,7 +164,6 @@ pub fn main() !void {
     };
 
     try context.load_scene_buffer(&scene_uniform_cpu);
-    try context.load_light_buffer();
 
     const suzanne = try context.mesh_manager.loadObj("./assets/meshes/suzanne.obj");
     _ = try context.mesh_manager.makeGPUResident(suzanne);
@@ -206,6 +206,34 @@ pub fn main() !void {
         .light_buffer = context.light_buffer.toBuffer(),
     });
     context.material_system = try .init();
+    context.light_system = try .init();
+
+    const light_dir = zmath.normalize4(@Vector(4, f32){ 0, 0, 0, 1 } - @Vector(4, f32){ 0, 10, 10, 1 });
+    try context.light_system.add_light(allocator, LightSystem.PointLight{
+        .color = .{ 1, 1, 1 },
+        .position = .{ 5, 0, 0 },
+        .intensity = 13.0,
+        .radius = 10.0,
+    });
+
+    try context.light_system.add_light(allocator, LightSystem.SpotLight{
+        .color = .{ 1, 1, 1 },
+        .direction = .{ light_dir[0], light_dir[1], light_dir[2] },
+        .intensity = 6.0,
+        .position = .{ 0, 10, 10 },
+        .radius = std.math.cos(std.math.degreesToRadians(12.5)),
+        .inner_cone = std.math.degreesToRadians(10),
+        .outer_cone = std.math.degreesToRadians(10),
+    });
+
+    try context.light_system.add_light(allocator, LightSystem.DirectionalLight{
+        .color = .{ 1, 1, 1 },
+        .direction = .{ 0, -1, 0 },
+        .intensity = 6.0,
+    });
+
+    context.light_system.upload();
+    gl.bindBufferBase(gl.SHADER_STORAGE_BUFFER, 3, context.light_system.buffer.handle);
 
     gl.clearColor(0, 0, 0, 1);
     gl.enable(gl.DEPTH_TEST);
@@ -284,12 +312,28 @@ pub fn main() !void {
 
     context.mesh_pipeline.bind();
     gl.bindBufferBase(gl.SHADER_STORAGE_BUFFER, 4, context.material_system.buffer.handle);
+
+    var light_x: f32 = 0.0;
+    var light_y: f32 = 0.0;
     while (!window.shouldClose()) {
         glfw.pollEvents();
 
         const nano = timer.lap();
         const delta_time = @as(f32, @floatFromInt(nano)) / @as(f32, std.time.ns_per_ms);
-        _ = delta_time;
+        {
+            light_x += 0.001 * delta_time;
+            light_y += 0.001 * delta_time;
+
+            const new_pos = zmath.mul(zmath.rotationY(light_x), @Vector(4, f32){ 5, 0, 0, 1 });
+            context.light_system.lights.items[0].position = .{ new_pos[0], new_pos[1], new_pos[2] };
+            // context.light_system.lights.items[0].direction = .{
+            //     std.math.cos(light_x),
+            //     std.math.sin(light_y),
+            //     0.0,
+            // };
+            context.light_system.upload();
+            gl.memoryBarrier(gl.BUFFER_UPDATE_BARRIER_BIT);
+        }
 
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 

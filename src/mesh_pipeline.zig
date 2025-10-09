@@ -80,7 +80,7 @@ pub fn init(allocator: std.mem.Allocator, user_data: *const UserData) !MeshPipel
     const main_vertex_sources = try read_file(allocator, "./assets/shaders/instanced_mesh_standard.vs");
     defer allocator.free(main_vertex_sources);
 
-    const main_fragment_sources = try read_file(allocator, "./assets/shaders/material_color.fs");
+    const main_fragment_sources = try read_file(allocator, "./assets/shaders/material_color_multi_lights.fs");
     defer allocator.free(main_fragment_sources);
 
     try program.init(&.{
@@ -181,7 +181,7 @@ pub fn bind(self: *const MeshPipeline) void {
     Inlucere.gl.bindBufferBase(Inlucere.gl.UNIFORM_BUFFER, 0, self.scene_uniform_buffer.handle);
     Inlucere.gl.bindBufferBase(Inlucere.gl.SHADER_STORAGE_BUFFER, 1, self.per_instance_buffer.handle);
     Inlucere.gl.bindBufferBase(Inlucere.gl.SHADER_STORAGE_BUFFER, 2, self.instance_range_buffer.handle);
-    Inlucere.gl.bindBufferBase(Inlucere.gl.SHADER_STORAGE_BUFFER, 3, self.light_buffer.handle);
+    //Inlucere.gl.bindBufferBase(Inlucere.gl.SHADER_STORAGE_BUFFER, 3, self.light_buffer.handle);
     Inlucere.gl.bindBuffer(Inlucere.gl.DRAW_INDIRECT_BUFFER, self.command_buffer.handle);
 }
 
