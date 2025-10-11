@@ -12,10 +12,6 @@ pub fn MeshManager(comptime VertexType: type) type {
             offset: u32,
             size: u32,
 
-            pub fn @"<"(lhs: Block, rhs: Block) bool {
-                return lhs.offset < rhs.offset;
-            }
-
             pub fn order(lhs: Block, rhs: Block) std.math.Order {
                 return std.math.order(lhs.offset, rhs.offset);
             }
@@ -61,7 +57,9 @@ pub fn MeshManager(comptime VertexType: type) type {
 
             self.allocation = .empty;
             self.vertex_free_blocks = try .initCapacity(allocator, 32);
+            self.vertex_free_blocks.appendAssumeCapacity(.{ .offset = 0, .size = @intCast(max_vertices) });
             self.index_free_blocks = try .initCapacity(allocator, 32);
+            self.index_free_blocks.appendAssumeCapacity(.{ .offset = 0, .size = @intCast(max_indices) });
         }
 
         pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
