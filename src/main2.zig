@@ -24,6 +24,27 @@ const SceneUniform = extern struct {
     view_pos: [4]f32,
 };
 
+fn upload_mesh(allocator: std.mem.Allocator, mesh_manager: *MeshManager, staging_buffer: *StagingBuffer, handle: u32, mesh: *const Mesh) !?MeshManager.MeshHandle {
+    var vertices: std.array_list.Aligned(Mesh.Vertex, null) = try .initCapacity(allocator, mesh.normals.len);
+    defer vertices.deinit(allocator);
+    for (mesh.positions, mesh.normals, mesh.tangents, mesh.texCoords) |pos, norm, tang, tex| {
+        vertices.appendAssumeCapacity(.{
+            .position = .{ pos[0], pos[1], pos[2], 1.0 },
+            .normal = .{ norm[0], norm[1], norm[2], 1.0 },
+            .tangent = .{ tang[0], tang[1], tang[2], 1.0 },
+            .texCoord = .{ tex[0], tex[1] },
+        });
+    }
+
+    return mesh_manager.alloc(
+        allocator,
+        handle,
+        vertices.items,
+        mesh.indices,
+        staging_buffer,
+    );
+}
+
 pub fn main() !void {
     const allocator, const is_debug = gpa: {
         break :gpa switch (builtin.mode) {
@@ -126,33 +147,8 @@ pub fn main() !void {
     }
 
     staging_buffer.begin_frame();
-    const suzanne_handle = try mesh_manager.alloc(
-        allocator,
-        suzanne_id,
-        vertices.items,
-        suzanne.indices,
-        &staging_buffer,
-    ) orelse unreachable;
-    std.log.info("Sphere: {}", .{suzanne_handle});
-
-    vertices.clearRetainingCapacity();
-    for (sphere.positions, sphere.normals, sphere.tangents, sphere.texCoords) |pos, norm, tang, tex| {
-        vertices.appendAssumeCapacity(.{
-            .position = .{ pos[0], pos[1], pos[2], 1.0 },
-            .normal = .{ norm[0], norm[1], norm[2], 1.0 },
-            .tangent = .{ tang[0], tang[1], tang[2], 1.0 },
-            .texCoord = .{ tex[0], tex[1] },
-        });
-    }
-
-    const sphere_handle = try mesh_manager.alloc(
-        allocator,
-        sphere_id,
-        vertices.items,
-        sphere.indices,
-        &staging_buffer,
-    ) orelse unreachable;
-    std.log.info("Sphere: {}", .{sphere_handle});
+    _ = try upload_mesh(allocator, &mesh_manager, &staging_buffer, suzanne_id, &suzanne);
+    _ = try upload_mesh(allocator, &mesh_manager, &staging_buffer, sphere_id, &sphere);
     staging_buffer.end_frame();
 
     var material_system: MaterialSystem = undefined;

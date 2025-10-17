@@ -17,7 +17,7 @@ pub fn MeshManager(comptime IdType: type, comptime VertexType: type) type {
             }
         };
 
-        const MeshHandle = struct {
+        pub const MeshHandle = struct {
             id: IdType,
             vertex_offset: u32,
             vertex_count: u32,
