@@ -6,7 +6,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const exe_mod = b.createModule(.{
-        .root_source_file = b.path("src/main.zig"),
+        .root_source_file = b.path("src/main2.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -29,9 +29,9 @@ pub fn build(b: *std.Build) void {
     // const zstbi = b.dependency("zstbi", .{});
     // exe.root_module.addImport("zstbi", zstbi.module("root"));
 
-    // const ecez = b.dependency("ecez", .{});
-    // const ecez_module = ecez.module("ecez");
-    // exe.root_module.addImport("ecez", ecez_module);
+    const ecez = b.dependency("ecez", .{});
+    const ecez_module = ecez.module("ecez");
+    exe.root_module.addImport("ecez", ecez_module);
 
     b.installArtifact(exe);
 

@@ -19,14 +19,14 @@
         //     .url = "git+https://github.com/zig-gamedev/zstbi#4fce0ee7ca94bd42536c136d9a369e647bc55b14",
         //     .hash = "zstbi-0.10.0-AAAAAL2VBwCAQYZQ7se9iRdJUp_RPJmhGBgfrIcVA1_c",
         // },
-        // .ecez = .{
-        //     .url = "git+https://github.com/Avokadoen/ecez.git/?ref=HEAD#cf50b75023ac774a2228c469c978e875deea6b5f",
-        //     .hash = "ecez-0.0.0-X-dkoD5SBQBV3HR9tBNandFMBBMkpo2PukxnOp_xKQQu",
-        // },
         // .VkRadixSort = .{
         //     .url = "git+https://github.com/MircoWerner/VkRadixSort#96178e0515292f96de112fea0c1b469416388c7e",
         //     .hash = "N-V-__8AAAFsDAA_D55xFm9DL12b1dC-5seIGuKXTVEvxXue",
         // },
+        .ecez = .{
+            .url = "git+https://github.com/Avokadoen/ecez#ecec7af731ade2c6ce1a5fb1958f820dfed1f6e1",
+            .hash = "ecez-2.3.0-X-dkoM86BgCoCcdE1YWUn5f44PZLW3UfK2KgvzvhIw8V",
+        },
     },
     .paths = .{
         "build.zig",

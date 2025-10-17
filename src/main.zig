@@ -11,6 +11,8 @@ const MeshPipeline = @import("mesh_pipeline.zig");
 const MaterialSystem = @import("material_system.zig");
 const LightSystem = @import("light_system.zig");
 
+const ecez = @import("ecez");
+
 var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
 
 pub const MeshData = extern struct {
@@ -108,6 +110,29 @@ pub const Context = struct {
     pub fn load_light_buffer(self: *Context, light_buffer: *const LightBuffer) !void {
         self.light_buffer = try .init("lights", LightBuffer, &[1]LightBuffer{light_buffer.*}, .ExplicitFlushed, .{});
     }
+
+    pub fn load_scene(self: *Context, allocator: std.mem.Allocator) !void {
+        const suzanne = try self.mesh_manager.loadObj("./assets/meshes/suzanne.obj");
+        _ = try self.mesh_manager.makeGPUResident(suzanne);
+
+        const sphere = try self.mesh_manager.loadObj("./assets/meshes/sphere.obj");
+        _ = try self.mesh_manager.makeGPUResident(sphere);
+
+        const cube = try self.mesh_manager.loadObj("./assets/meshes/cube.obj");
+        _ = try self.mesh_manager.makeGPUResident(cube);
+
+        const white = try self.material_system.add_mat(allocator, .{
+            .color = .{ 1, 1, 1, 1 },
+        });
+        const white_slot = try self.material_system.make_resident(white);
+
+        // Floor
+        try self.mesh_pipeline.add_instance(allocator, cube, &.{
+            .transform = zmath.scaling(100, 0.5, 100),
+            .material_id = @intCast(white_slot),
+            .binding_info = self.mesh_manager.getBindingInfo(cube).?,
+        });
+    }
 };
 
 pub fn main() !void {
@@ -158,21 +183,12 @@ pub fn main() !void {
         .theta = -std.math.pi / 2.0,
     };
     const scene_uniform_cpu = SceneUniform{
-        .view = zmath.lookAtRh(.{ 0, 10, 10, 1 }, .{ 0, 0, 0, 1 }, .{ 0, 1, 0, 0 }),
+        .view = zmath.lookAtRh(.{ 0, 1, 10, 1 }, .{ 0, 0, 0, 1 }, .{ 0, 1, 0, 0 }),
         .proj = camera.getProjection(1280, 720, 45.0),
         .view_pos = .{ camera.position[0], camera.position[1], camera.position[2], 1.0 },
     };
 
     try context.load_scene_buffer(&scene_uniform_cpu);
-
-    const suzanne = try context.mesh_manager.loadObj("./assets/meshes/suzanne.obj");
-    _ = try context.mesh_manager.makeGPUResident(suzanne);
-
-    const sphere = try context.mesh_manager.loadObj("./assets/meshes/sphere.obj");
-    _ = try context.mesh_manager.makeGPUResident(sphere);
-
-    const cube = try context.mesh_manager.loadObj("./assets/meshes/cube.obj");
-    _ = try context.mesh_manager.makeGPUResident(cube);
 
     var vao: Inlucere.Device.VertexArrayObject = undefined;
     vao.init(&.{ .vertexAttributeDescription = &.{
@@ -208,28 +224,18 @@ pub fn main() !void {
     context.material_system = try .init();
     context.light_system = try .init();
 
-    const light_dir = zmath.normalize4(@Vector(4, f32){ 0, 0, 0, 1 } - @Vector(4, f32){ 0, 10, 10, 1 });
-    try context.light_system.add_light(allocator, LightSystem.PointLight{
-        .color = .{ 1, 1, 1 },
-        .position = .{ 5, 0, 0 },
-        .intensity = 13.0,
-        .radius = 10.0,
-    });
+    try context.load_scene(allocator);
 
-    try context.light_system.add_light(allocator, LightSystem.SpotLight{
-        .color = .{ 1, 1, 1 },
-        .direction = .{ light_dir[0], light_dir[1], light_dir[2] },
-        .intensity = 6.0,
-        .position = .{ 0, 10, 10 },
-        .radius = std.math.cos(std.math.degreesToRadians(12.5)),
-        .inner_cone = std.math.degreesToRadians(10),
-        .outer_cone = std.math.degreesToRadians(10),
-    });
-
+    // try context.light_system.add_light(allocator, LightSystem.PointLight{
+    //     .position = .{ 0, 2, 0 },
+    //     .color = .{ 1, 1, 1 },
+    //     .intensity = 1000.0,
+    //     .radius = 1000.0,
+    // });
     try context.light_system.add_light(allocator, LightSystem.DirectionalLight{
         .color = .{ 1, 1, 1 },
         .direction = .{ 0, -1, 0 },
-        .intensity = 6.0,
+        .intensity = 1000.0,
     });
 
     context.light_system.upload();
@@ -240,100 +246,15 @@ pub fn main() !void {
 
     var timer = try std.time.Timer.start();
 
-    const purple = try context.material_system.add_mat(allocator, .{
-        .color = .{ 1, 0, 1, 1 },
-    });
-    const purple_slot = try context.material_system.make_resident(purple);
-    std.log.info("Binding Purple to slot {}", .{purple_slot});
-    const blue = try context.material_system.add_mat(allocator, .{
-        .color = .{ 0, 0, 1, 1 },
-    });
-    const blue_slot = try context.material_system.make_resident(blue);
-    std.log.info("Binding Blue to slot {}", .{blue_slot});
-    const green = try context.material_system.add_mat(allocator, .{
-        .color = .{ 0, 1, 0, 1 },
-    });
-    const green_slot = try context.material_system.make_resident(green);
-    std.log.info("Binding Green to slot {}", .{green_slot});
-
-    try context.mesh_pipeline.add_instance(allocator, suzanne, &.{
-        .transform = zmath.translation(2, 0, 0),
-        .material_id = @intCast(purple_slot),
-        .binding_info = context.mesh_manager.getBindingInfo(suzanne).?,
-    });
-
-    try context.mesh_pipeline.add_instance(allocator, suzanne, &.{
-        .transform = zmath.translation(2, 0, 2),
-        .material_id = @intCast(blue_slot),
-        .binding_info = context.mesh_manager.getBindingInfo(suzanne).?,
-    });
-
-    try context.mesh_pipeline.add_instance(allocator, suzanne, &.{
-        .transform = zmath.translation(2, 0, -2),
-        .material_id = @intCast(green_slot),
-        .binding_info = context.mesh_manager.getBindingInfo(suzanne).?,
-    });
-
-    try context.mesh_pipeline.add_instance(allocator, sphere, &.{
-        .transform = zmath.identity(),
-        .material_id = @intCast(purple_slot),
-        .binding_info = context.mesh_manager.getBindingInfo(sphere).?,
-    });
-
-    try context.mesh_pipeline.add_instance(allocator, sphere, &.{
-        .transform = zmath.translation(0, 0, 2),
-        .material_id = @intCast(blue_slot),
-        .binding_info = context.mesh_manager.getBindingInfo(sphere).?,
-    });
-
-    try context.mesh_pipeline.add_instance(allocator, sphere, &.{
-        .transform = zmath.translation(0, 0, -2),
-        .material_id = @intCast(green_slot),
-        .binding_info = context.mesh_manager.getBindingInfo(sphere).?,
-    });
-
-    try context.mesh_pipeline.add_instance(allocator, cube, &.{
-        .transform = zmath.translation(-2, 0, 0),
-        .material_id = @intCast(purple_slot),
-        .binding_info = context.mesh_manager.getBindingInfo(cube).?,
-    });
-
-    try context.mesh_pipeline.add_instance(allocator, cube, &.{
-        .transform = zmath.mul(zmath.scaling(0.5, 0.5, 0.5), zmath.translation(-2, 0, 2)),
-        .material_id = @intCast(blue_slot),
-        .binding_info = context.mesh_manager.getBindingInfo(cube).?,
-    });
-
-    try context.mesh_pipeline.add_instance(allocator, cube, &.{
-        .transform = zmath.mul(zmath.rotationZ(std.math.degreesToRadians(45)), zmath.translation(-2, 0, -2)),
-        .material_id = @intCast(green_slot),
-        .binding_info = context.mesh_manager.getBindingInfo(cube).?,
-    });
-
     context.mesh_pipeline.bind();
     gl.bindBufferBase(gl.SHADER_STORAGE_BUFFER, 4, context.material_system.buffer.handle);
 
-    var light_x: f32 = 0.0;
-    var light_y: f32 = 0.0;
     while (!window.shouldClose()) {
         glfw.pollEvents();
 
         const nano = timer.lap();
         const delta_time = @as(f32, @floatFromInt(nano)) / @as(f32, std.time.ns_per_ms);
-        {
-            light_x += 0.001 * delta_time;
-            light_y += 0.001 * delta_time;
-
-            const new_pos = zmath.mul(zmath.rotationY(light_x), @Vector(4, f32){ 5, 0, 0, 1 });
-            context.light_system.lights.items[0].position = .{ new_pos[0], new_pos[1], new_pos[2] };
-            // context.light_system.lights.items[0].direction = .{
-            //     std.math.cos(light_x),
-            //     std.math.sin(light_y),
-            //     0.0,
-            // };
-            context.light_system.upload();
-            gl.memoryBarrier(gl.BUFFER_UPDATE_BARRIER_BIT);
-        }
+        _ = delta_time;
 
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 

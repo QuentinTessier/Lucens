@@ -13,6 +13,10 @@ pub fn ObjectPoolAllocator(comptime T: type) type {
                 const memory = self.pool.memory.cast(u8)[self.offset .. self.offset + @sizeOf(T)];
                 return @ptrCast(@alignCast(memory.ptr));
             }
+
+            pub fn flush(self: *const Allocation) void {
+                self.pool.memory.flushRange(self.offset * @sizeOf(T), @sizeOf(T));
+            }
         };
 
         allocator: std.mem.Allocator,

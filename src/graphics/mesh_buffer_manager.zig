@@ -4,7 +4,7 @@ const gl = Inlucere.gl;
 const StagingBufferManager = @import("staging_buffer_manager.zig");
 
 // TODO: Generate VAO from VertexType
-pub fn MeshManager(comptime VertexType: type) type {
+pub fn MeshManager(comptime IdType: type, comptime VertexType: type) type {
     return struct {
         pub const Self = @This();
 
@@ -18,7 +18,7 @@ pub fn MeshManager(comptime VertexType: type) type {
         };
 
         const MeshHandle = struct {
-            id: u32,
+            id: IdType,
             vertex_offset: u32,
             vertex_count: u32,
             index_offset: u32,
@@ -34,32 +34,45 @@ pub fn MeshManager(comptime VertexType: type) type {
         vertex_count: usize,
         index_count: usize,
 
-        next_id: u32,
         vertex_free_blocks: std.array_list.Aligned(Block, null),
         index_free_blocks: std.array_list.Aligned(Block, null),
-        allocation: std.AutoHashMapUnmanaged(u32, MeshHandle),
+        allocation: std.AutoHashMapUnmanaged(IdType, MeshHandle),
 
         pub fn init(self: *Self, allocator: std.mem.Allocator, max_vertices: usize, max_indices: usize, vertex_array_object: u32) !void {
-            const buffer_handles: [2]u32 = undefined;
+            var buffer_handles: [2]u32 = undefined;
             gl.createBuffers(2, (&buffer_handles).ptr);
             self.vertex_buffer = buffer_handles[0];
-            gl.namedBufferStorage(self.vertex_buffer, max_vertices * @sizeOf(VertexType), null, 0);
+            gl.namedBufferStorage(self.vertex_buffer, @intCast(max_vertices * @sizeOf(VertexType)), null, 0);
+            Inlucere.gl.objectLabel(
+                Inlucere.gl.BUFFER,
+                self.vertex_buffer,
+                8,
+                "vertices",
+            );
 
             self.index_buffer = buffer_handles[1];
-            gl.namedBufferStorage(self.vertex_buffer, max_indices * @sizeOf(u32), null, 0);
+            gl.namedBufferStorage(self.index_buffer, @intCast(max_indices * @sizeOf(u32)), null, 0);
+            Inlucere.gl.objectLabel(
+                Inlucere.gl.BUFFER,
+                self.index_buffer,
+                7,
+                "indices",
+            );
 
             self.vertex_array_object = vertex_array_object;
             self.max_vertices = max_vertices;
             self.max_indices = max_indices;
             self.vertex_count = 0;
             self.index_count = 0;
-            self.next_id = 1;
 
             self.allocation = .empty;
             self.vertex_free_blocks = try .initCapacity(allocator, 32);
             self.vertex_free_blocks.appendAssumeCapacity(.{ .offset = 0, .size = @intCast(max_vertices) });
             self.index_free_blocks = try .initCapacity(allocator, 32);
             self.index_free_blocks.appendAssumeCapacity(.{ .offset = 0, .size = @intCast(max_indices) });
+
+            gl.vertexArrayVertexBuffer(self.vertex_array_object, 0, self.vertex_buffer, 0, @sizeOf(VertexType));
+            gl.vertexArrayElementBuffer(self.vertex_array_object, self.index_buffer);
         }
 
         pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
@@ -71,24 +84,24 @@ pub fn MeshManager(comptime VertexType: type) type {
             self.index_free_blocks.deinit(allocator);
         }
 
-        pub fn alloc(self: *Self, allocator: std.mem.Allocator, vertices: []const VertexType, indices: []const u32, staging: *StagingBufferManager) ?MeshHandle {
+        pub fn alloc(self: *Self, allocator: std.mem.Allocator, id: IdType, vertices: []const VertexType, indices: []const u32, staging: *StagingBufferManager) !?MeshHandle {
             const vertex_offset = self.alloc_from_freelist(&self.vertex_free_blocks, vertices.len);
             const index_offset = self.alloc_from_freelist(&self.index_free_blocks, indices.len);
 
             if (vertex_offset == std.math.maxInt(usize) or index_offset == std.math.maxInt(usize)) return null;
 
             const handle: MeshHandle = .{
-                .id = self.next_id,
-                .vertex_offset = vertex_offset,
+                .id = id,
+                .vertex_offset = @intCast(vertex_offset),
                 .vertex_count = @intCast(vertices.len),
-                .index_offset = index_offset,
+                .index_offset = @intCast(index_offset),
                 .index_count = @intCast(indices.len),
             };
 
-            _ = staging.upload(self.vertex_buffer, handle.vertex_offset, std.mem.sliceAsBytes(vertices));
-            _ = staging.upload(self.index_buffer, handle.index_offset, std.mem.sliceAsBytes(indices));
+            _ = staging.upload(self.vertex_buffer, handle.vertex_offset * @sizeOf(VertexType), std.mem.sliceAsBytes(vertices));
+            _ = staging.upload(self.index_buffer, handle.index_offset * @sizeOf(u32), std.mem.sliceAsBytes(indices));
 
-            try self.allocation.put(allocator, handle.id, handle);
+            try self.allocation.put(allocator, id, handle);
             self.vertex_count += vertices.len;
             self.index_count += indices.len;
             return handle;
@@ -179,10 +192,10 @@ pub fn MeshManager(comptime VertexType: type) type {
                     const offset = block.offset;
 
                     if (block.size == size) {
-                        free_list.orderedRemove(index);
+                        _ = free_list.orderedRemove(index);
                     } else {
-                        block.offset += size;
-                        block.size -= size;
+                        block.offset += @intCast(size);
+                        block.size -= @intCast(size);
                     }
 
                     return offset;

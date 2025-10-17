@@ -6,7 +6,7 @@ pub const StagingBufferManager = @This();
 
 const StagingBuffer = struct {
     handle: u32,
-    memory: []u8,
+    mapped_memory: []u8,
     fence: ?gl.GLsync,
 };
 
@@ -21,7 +21,7 @@ pub const InitOption = struct {
 };
 
 pub fn init(allocator: std.mem.Allocator, options: *const InitOption) !StagingBufferManager {
-    var staging_buffers: std.array_list.Aligned(StagingBuffer, null) = .initCapacity(allocator, options.count);
+    var staging_buffers: std.array_list.Aligned(StagingBuffer, null) = try .initCapacity(allocator, options.count);
     for (0..options.count) |_| {
         const ptr = staging_buffers.addOneAssumeCapacity();
         gl.createBuffers(1, &ptr.handle);
@@ -40,6 +40,12 @@ pub fn init(allocator: std.mem.Allocator, options: *const InitOption) !StagingBu
         const mapped_multibytes_ptr: [*]u8 = @ptrCast(@alignCast(mapped_opaque_ptr));
         ptr.mapped_memory = mapped_multibytes_ptr[0..options.size];
         ptr.fence = null;
+        Inlucere.gl.objectLabel(
+            Inlucere.gl.BUFFER,
+            ptr.handle,
+            7,
+            "staging",
+        );
     }
 
     return .{
@@ -64,7 +70,7 @@ pub fn begin_frame(self: *StagingBufferManager) void {
     self.offset = 0;
 
     if (self.staging_buffers.items[@intCast(self.current_frame)].fence) |fence| {
-        gl.clientWaitSync(fence, gl.SYNC_FLUSH_COMMANDS_BIT, 10000000);
+        _ = gl.clientWaitSync(fence, gl.SYNC_FLUSH_COMMANDS_BIT, 10000000);
         gl.deleteSync(fence);
         self.staging_buffers.items[@intCast(self.current_frame)].fence = null;
     }
@@ -74,15 +80,16 @@ pub fn end_frame(self: *StagingBufferManager) void {
     self.staging_buffers.items[@intCast(self.current_frame)].fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
 }
 
-pub fn upload(self: *StagingBufferManager, dst_buffer: u32, dst_offset: u32, data: []u8) bool {
+pub fn upload(self: *StagingBufferManager, dst_buffer: u32, dst_offset: u32, data: []const u8) bool {
     if (self.offset + @as(u32, @intCast(data.len)) > self.staging_size) {
         // TODO: Better handling !
         return false;
     }
 
-    const slice = self.staging_buffers.items[@intCast(self.current_frame)].memory[@intCast(self.offset) .. @as(usize, @intCast(self.offset)) + data.len];
+    const slice = self.staging_buffers.items[@intCast(self.current_frame)].mapped_memory[@intCast(self.offset) .. @as(usize, @intCast(self.offset)) + data.len];
     @memcpy(slice, data);
 
+    std.log.info("Uploading to buffer from {} to {} with {} bytes", .{ self.offset, dst_offset, data.len });
     gl.copyNamedBufferSubData(
         self.staging_buffers.items[@intCast(self.current_frame)].handle,
         dst_buffer,
@@ -92,4 +99,5 @@ pub fn upload(self: *StagingBufferManager, dst_buffer: u32, dst_offset: u32, dat
     );
 
     self.offset += @intCast(data.len);
+    return true;
 }
