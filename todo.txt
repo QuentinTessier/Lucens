@@ -1,0 +1,14 @@
+TODO:
+- [X] Frustum from camera (done for real !)
+- [X] Cut the frustum into boxes
+- [X] Figure out the layout on the GPU
+- [X] Figure how to get the right box for each pixel (flat color)
+
+Off stream
+- [ ] Debug session
+- [ ] Cleanup code
+- [ ] Cleanup files on git
+
+On Next Stream
+- [ ] Add lights to each box + frustum culling
+- [ ] Compute lighting based on the fragment box

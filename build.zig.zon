@@ -27,6 +27,10 @@
             .url = "git+https://github.com/Avokadoen/ecez#ecec7af731ade2c6ce1a5fb1958f820dfed1f6e1",
             .hash = "ecez-2.3.0-X-dkoM86BgCoCcdE1YWUn5f44PZLW3UfK2KgvzvhIw8V",
         },
+        .zmesh = .{
+            .url = "git+https://github.com/zig-gamedev/zmesh#36ec42e7e77b2cade7776eb3e91e3e290293a864",
+            .hash = "zmesh-0.11.0-dev-oO3A5rR7CgCTMzfdKOhWW-OIyL4-7mlxXzBef_62fbHb",
+        },
     },
     .paths = .{
         "build.zig",

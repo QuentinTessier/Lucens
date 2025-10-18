@@ -23,6 +23,10 @@ pub fn build(b: *std.Build) void {
     const zmath = b.dependency("zmath", .{});
     exe.root_module.addImport("zmath", zmath.module("root"));
 
+    const zmesh = b.dependency("zmesh", .{});
+    exe.root_module.addImport("zmesh", zmesh.module("root"));
+    exe.linkLibrary(zmesh.artifact("zmesh"));
+
     const inlucere = b.dependency("Inlucere", .{});
     exe.root_module.addImport("Inlucere", inlucere.module("Inlucere"));
 

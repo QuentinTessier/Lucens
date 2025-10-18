@@ -70,7 +70,8 @@ pub fn init(
     const main_vertex_sources = try read_file(allocator, "./assets/shaders/instanced_mesh_standard.vs");
     defer allocator.free(main_vertex_sources);
 
-    const main_fragment_sources = try read_file(allocator, "./assets/shaders/material_color_multi_lights.fs");
+    // const main_fragment_sources = try read_file(allocator, "./assets/shaders/material_color_multi_lights.fs");
+    const main_fragment_sources = try read_file(allocator, "./assets/shaders/test_frustum.fs");
     defer allocator.free(main_fragment_sources);
 
     try self.program.init(&.{

@@ -83,6 +83,7 @@ pub fn end_frame(self: *StagingBufferManager) void {
 pub fn upload(self: *StagingBufferManager, dst_buffer: u32, dst_offset: u32, data: []const u8) bool {
     if (self.offset + @as(u32, @intCast(data.len)) > self.staging_size) {
         // TODO: Better handling !
+        std.log.err("Staging not enought space", .{});
         return false;
     }
 

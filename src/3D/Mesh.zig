@@ -127,12 +127,12 @@ pub fn buildTangents(allocator: std.mem.Allocator, positions: [][3]f32, texCoord
 }
 
 fn computeBounds(positions: []const [3]f32) BoundingBox {
-    var min: @Vector(3, f32) = .{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
-    var max: @Vector(3, f32) = .{ std.math.floatMin(f32), std.math.floatMin(f32), std.math.floatMin(f32) };
+    var min: @Vector(4, f32) = .{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32), 1.0 };
+    var max: @Vector(4, f32) = .{ std.math.floatMin(f32), std.math.floatMin(f32), std.math.floatMin(f32), 1.0 };
 
     for (positions) |position| {
-        min = @min(min, @as(@Vector(3, f32), position));
-        max = @max(max, @as(@Vector(3, f32), position));
+        min = @min(min, @as(@Vector(4, f32), .{ position[0], position[1], position[2], 1.0 }));
+        max = @max(max, @as(@Vector(4, f32), .{ position[0], position[1], position[2], 1.0 }));
     }
 
     return .init(min, max);
