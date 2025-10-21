@@ -68,12 +68,9 @@ fn resolve_includes(allocator: std.mem.Allocator, filepath: []const u8, include_
     var file = try std.fs.cwd().openFile(path, .{});
     defer file.close();
 
-    const size = try file.getEndPos();
-
-    var sources: std.array_list.Aligned(u8, null) = try .initCapacity(allocator, size);
-    defer sources.deinit(allocator);
-    try sources.resize(allocator, size);
-    _ = try file.readAll(sources.items);
+    var buffer: [512]u8 = undefined;
+    var reader = file.reader(&buffer);
+    const interface = &reader.interface;
 
     var line_tag_buffer: [512]u8 = undefined;
     var result: std.array_list.Aligned(u8, null) = .empty;
@@ -83,9 +80,8 @@ fn resolve_includes(allocator: std.mem.Allocator, filepath: []const u8, include_
         try result.insertSlice(allocator, 0, line_tag);
     }
 
-    var line_ite = std.mem.splitSequence(u8, sources.items, "\n");
     var line_number: usize = 1;
-    while (line_ite.next()) |line| {
+    while (interface.takeDelimiterExclusive('\n')) |line| {
         const trimmed = std.mem.trim(u8, line, " \t");
         if (std.mem.startsWith(u8, trimmed, "#include")) {
             const start_quote = std.mem.indexOfAny(u8, trimmed, "\"<") orelse @panic("");
@@ -102,6 +98,11 @@ fn resolve_includes(allocator: std.mem.Allocator, filepath: []const u8, include_
             try result.append(allocator, '\n');
         }
         line_number += 1;
+    } else |err| switch (err) {
+        error.EndOfStream => {},
+        error.StreamTooLong => return err,
+        error.ReadFailed => return err,
     }
+
     return result.toOwnedSlice(allocator);
 }
