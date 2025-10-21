@@ -1,5 +1,9 @@
 #version 460 core
 
+//#extension GL_GOOGLE_include_directive : require
+
+#include "utils/depth.glsl"
+
 layout(location = 0) in vec3 fWorldPos;
 layout(location = 1) in vec3 fNormal;
 layout(location = 2) in flat uint fMaterialID;
@@ -18,16 +22,10 @@ layout(std140, binding = 0) uniform Scene {
     vec4 view_pos;
 };
 
-layout(std430, binding = 9) buffer readonly BBS {
+layout(std430, binding = 9) readonly buffer BBS {
 	uint count;
 	BoundingBox bbs[];
 };
-
-float linear_depth(float near, float far)
-{
-    float depth01 = 1.0 - gl_FragCoord.w;
-    return near * (1.0 - depth01) + (far * depth01);
-}
 
 void main()
 {

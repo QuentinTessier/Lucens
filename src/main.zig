@@ -20,6 +20,8 @@ const Camera = @import("3D/Camera.zig");
 const Frustum = @import("3D/Frustum.zig");
 const BoundingBox = @import("3D/BoundingBox.zig");
 
+const ShaderCompiler = @import("shader_compiler.zig");
+
 var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
 
 const SceneUniform = extern struct {
@@ -109,6 +111,8 @@ pub fn main() !void {
 
     zmesh.init(allocator);
     defer zmesh.deinit();
+
+    var shader_compiler: ShaderCompiler = .init("./assets/shaders/");
 
     glfw.windowHint(.context_version_major, 4);
     glfw.windowHint(.context_version_minor, 6);
@@ -291,6 +295,11 @@ pub fn main() !void {
     _ = try upload_mesh(allocator, &mesh_manager, &staging_buffer, cat_id, &cat);
     staging_buffer.end_frame();
 
+    const program = try shader_compiler.compile_program(allocator, &.{
+        "instanced_mesh_standard.vert",
+        "test_frustum.frag",
+    });
+
     var material_system: MaterialSystem = undefined;
     try material_system.init(allocator);
     defer material_system.deinit(allocator);
@@ -298,6 +307,8 @@ pub fn main() !void {
     var mesh_pipeline: MeshPipeline = undefined;
     try mesh_pipeline.init(allocator, &mesh_manager, &material_system);
     defer mesh_pipeline.deinit(allocator);
+
+    mesh_pipeline.program = program;
 
     var light_system: LightSystem = try .init();
     defer light_system.deinit(allocator);
@@ -311,13 +322,16 @@ pub fn main() !void {
     light_system.upload();
     gl.bindBufferBase(gl.SHADER_STORAGE_BUFFER, 3, light_system.buffer.handle);
 
-    // const speed: f32 = 0.001;
-    //var position: @Vector(4, f32) = .{ 0, 0, 0, 1 };
+    const speed: f32 = 0.1;
+    var position: @Vector(4, f32) = .{ 0, 0, 0, 1 };
     while (!window.shouldClose()) {
         glfw.pollEvents();
 
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        //position[2] += z_dir * speed;
+        position[2] += z_dir * speed;
+        if (position[2] > 100) {
+            position[2] = 0;
+        }
 
         material_system.begin();
         mesh_pipeline.begin();
@@ -331,8 +345,8 @@ pub fn main() !void {
 
         try mesh_pipeline.draw_instance(
             allocator,
-            cat_id,
-            zmath.scaling(0.5, 0.5, 0.5),
+            suzanne_id,
+            zmath.translationV(position),
             1,
         );
 
