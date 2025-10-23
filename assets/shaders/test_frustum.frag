@@ -1,6 +1,6 @@
 #version 460 core
 
-//#extension GL_GOOGLE_include_directive : require
+#extension GL_GOOGLE_cpp_style_line_directive : require
 
 #include "utils/depth.glsl"
 
@@ -24,13 +24,15 @@ layout(std140, binding = 0) uniform Scene {
 
 layout(std430, binding = 9) readonly buffer BBS {
 	uint count;
+    float distance_per_box;
+    vec4 custom_view_dir;
 	BoundingBox bbs[];
 };
 
 void main()
 {
-    float dist = distance(view_pos.xyz, fWorldPos);
-    uint index = uint(dist / 14.285714285714285714285714285714);
+    float dist = distance(custom_view_dir.xyz, fWorldPos);
+    uint index = uint(dist / distance_per_box);
 
     rColor = bbs[index].color;
 }

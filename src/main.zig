@@ -163,7 +163,7 @@ pub fn main() !void {
         .theta = -std.math.pi / 2.0,
     };
     const scene_uniform_cpu = SceneUniform{
-        .view = zmath.lookAtRh(.{ 0, 0, 10, 1 }, .{ 0, 0, 0, 1 }, .{ 0, 1, 0, 0 }),
+        .view = zmath.lookAtRh(.{ 0, 50, -50, 1 }, .{ 0, 0, 0, 1 }, .{ 0, 1, 0, 0 }),
         .proj = camera.getProjection(1280, 720, 45.0),
         .view_pos = .{ camera.position[0], camera.position[1], camera.position[2], 1.0 },
     };
@@ -221,6 +221,7 @@ pub fn main() !void {
     }
     const GPUFrustumBoundingBoxes = extern struct {
         count: [4]u32,
+        view_dir: [4]f32,
         bbs: [n_slice][3][4]f32,
     };
 
@@ -235,7 +236,8 @@ pub fn main() !void {
     };
 
     const gpu_frustum_bounding_boxes: GPUFrustumBoundingBoxes = .{
-        .count = .{ @intCast(n_slice), 0, 0, 0 },
+        .count = .{ @intCast(n_slice), @bitCast(z_length_slice), 0, 0 },
+        .view_dir = view_direction,
         .bbs = blk: {
             var buffer: [n_slice][3][4]f32 = undefined;
             inline for (0..n_slice) |i| {
@@ -281,10 +283,6 @@ pub fn main() !void {
     var suzanne: Mesh = try .initFromObj(allocator, "./assets/meshes/suzanne.obj");
     defer suzanne.deinit(allocator);
 
-    // const sphere_id: u32 = 2;
-    // var sphere: Mesh = try .initFromObj(allocator, "./assets/meshes/sphere.obj");
-    // defer sphere.deinit(allocator);
-
     const cat_id: u32 = 3;
     var cat: Mesh = try load_cat_mesh(allocator);
     defer cat.deinit(allocator);
@@ -322,7 +320,7 @@ pub fn main() !void {
     light_system.upload();
     gl.bindBufferBase(gl.SHADER_STORAGE_BUFFER, 3, light_system.buffer.handle);
 
-    const speed: f32 = 0.1;
+    const speed: f32 = 0.001;
     var position: @Vector(4, f32) = .{ 0, 0, 0, 1 };
     while (!window.shouldClose()) {
         glfw.pollEvents();

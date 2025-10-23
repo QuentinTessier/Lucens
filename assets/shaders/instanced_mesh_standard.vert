@@ -1,15 +1,8 @@
 #version 460 core
 
-struct MeshInstance {
-    mat4 model_to_world;
-    mat4 world_to_model;
-    uint material_id;
-};
+#extension GL_GOOGLE_cpp_style_line_directive : require
 
-struct MeshInstanceRange {
-    uint index;
-    uint count;
-};
+#include "utils/mesh_pipeline.glsl"
 
 out gl_PerVertex
 {

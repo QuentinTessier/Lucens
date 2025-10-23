@@ -5,9 +5,9 @@ TODO:
 - [X] Figure how to get the right box for each pixel (flat color)
 
 Off stream
-- [ ] Debug session
-- [ ] Cleanup code
-- [ ] Cleanup files on git
+- [X] Debug session
+- [X] Cleanup code
+- [X] Cleanup files on git
 
 On Next Stream
 - [ ] Add lights to each box + frustum culling
