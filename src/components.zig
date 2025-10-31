@@ -3,7 +3,7 @@ const math = @import("zmath");
 const TransformComponent = @import("3D/Transform.zig");
 const ecez = @import("ecez");
 
-const Components = struct {
+pub const Components = struct {
     pub const MaterialID = struct {
         id: u32,
     };
