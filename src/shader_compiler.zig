@@ -35,7 +35,7 @@ pub fn compile_program(self: *ShaderCompiler, allocator: std.mem.Allocator, file
             .source = try resolve_includes(allocator, path, self.include_path, true),
         });
 
-        std.debug.print("Compiling {s}\n-------------------------------------------------------------\n", .{shader_sources.items[shader_sources.items.len - 1].source});
+        //std.debug.print("Compiling {s}\n-------------------------------------------------------------\n", .{shader_sources.items[shader_sources.items.len - 1].source});
     }
 
     var program: Inlucere.Device.Program = undefined;

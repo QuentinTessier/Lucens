@@ -1,14 +1,12 @@
 TODO:
-- [X] Frustum from camera (done for real !)
-- [X] Cut the frustum into boxes
-- [X] Figure out the layout on the GPU
-- [X] Figure how to get the right box for each pixel (flat color)
+- [X] Add directional light to each cluster with different colors
+- [X] Edit shader to take into account the light
+- [X] Point lights
 
 Off stream
-- [X] Debug session
-- [X] Cleanup code
-- [X] Cleanup files on git
+- [ ] Why no contribution on the sides
+- [ ] Clean up main.zig more
 
 On Next Stream
-- [ ] Add lights to each box + frustum culling
-- [ ] Compute lighting based on the fragment box
+- [ ] GPU Driven ?
+- [ ] Scene + ECS ?

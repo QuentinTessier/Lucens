@@ -40,6 +40,7 @@ current_mesh_instances_pool: PersistentBufferedPool.AcquirePoolResult,
 current_draw_offsets_pool: PersistentBufferedPool.AcquirePoolResult,
 current_draw_commands_pool: PersistentBufferedPool.AcquirePoolResult,
 
+instance_lock: std.Thread.Mutex,
 instances: std.AutoArrayHashMapUnmanaged(u32, std.array_list.Aligned(MeshInstance, null)),
 
 fn read_file(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
@@ -57,6 +58,7 @@ pub fn init(
     gpu_mesh_manager: *MeshManager(u32, Mesh.Vertex),
     material_system: *MaterialSystem,
 ) !void {
+    self.instance_lock = .{};
     self.gpu_mesh_manager = gpu_mesh_manager;
     self.material_system = material_system;
     self.current_mesh_instances_pool = undefined;
@@ -116,7 +118,9 @@ pub fn begin(self: *MeshPipeline) void {
 }
 
 pub fn draw_instance(self: *MeshPipeline, allocator: std.mem.Allocator, id: u32, model_to_world: zmath.Mat, material_slot: u32) !void {
+    self.instance_lock.lock();
     const entry = try self.instances.getOrPut(allocator, id);
+    self.instance_lock.unlock();
     if (entry.found_existing) {
         try entry.value_ptr.append(allocator, .{
             .model_to_world = model_to_world,
@@ -138,6 +142,7 @@ pub fn end(self: *MeshPipeline) void {
     var offset: std.array_list.Aligned(u32, null) = .initBuffer(@ptrCast(@alignCast(self.current_draw_offsets_pool.memory)));
     var instances_array: std.array_list.Aligned(MeshInstance, null) = .initBuffer(@ptrCast(@alignCast(self.current_mesh_instances_pool.memory)));
     var current_offset: u32 = 0;
+    self.instance_lock.lock();
     for (self.instances.keys(), self.instances.values()) |mesh_id, *instances| {
         const binding_info = self.gpu_mesh_manager.allocation.get(mesh_id) orelse continue;
         commands.appendBounded(.{
@@ -162,6 +167,7 @@ pub fn end(self: *MeshPipeline) void {
         };
         instances.clearRetainingCapacity();
     }
+    self.instance_lock.unlock();
 
     self.mesh_instances_pool.release_pool();
     Inlucere.gl.bindBufferRange(
@@ -187,6 +193,10 @@ pub fn end(self: *MeshPipeline) void {
 }
 
 pub fn draw(self: *MeshPipeline) void {
+    if (self.instances.count() == 0) {
+        return;
+    }
+
     Inlucere.gl.useProgram(self.program.handle);
     Inlucere.gl.bindVertexArray(self.gpu_mesh_manager.vertex_array_object);
     Inlucere.gl.multiDrawElementsIndirect(

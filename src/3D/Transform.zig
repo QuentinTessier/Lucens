@@ -3,13 +3,11 @@ const zmath = @import("zmath");
 
 pub const Transform = @This();
 
-dirty: bool,
 position: [3]f32,
 scale: [3]f32,
 rotation: zmath.Quat,
 
 pub const identity: Transform = .{
-    .dirty = false,
     .position = .{ 0, 0, 0 },
     .scale = .{ 1, 1, 1 },
     .rotation = zmath.qidentity(),

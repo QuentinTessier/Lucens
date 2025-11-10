@@ -1,8 +1,6 @@
 const std = @import("std");
 const zmath = @import("zmath");
 
-pub const Frustum = @This();
-
 pub const Plane = struct {
     normal: [3]f32,
     t: f32,
@@ -23,40 +21,42 @@ pub const Plane = struct {
     }
 };
 
-left: Plane,
-right: Plane,
-bottom: Plane,
-top: Plane,
-near: Plane,
-far: Plane,
+pub const Frustum = struct {
+    left: Plane,
+    right: Plane,
+    bottom: Plane,
+    top: Plane,
+    near: Plane,
+    far: Plane,
 
-pub fn init(view_proj: zmath.Mat, normalize: bool) Frustum {
-    var left: [4]f32 = undefined;
-    var right: [4]f32 = undefined;
-    var bottom: [4]f32 = undefined;
-    var top: [4]f32 = undefined;
-    var near: [4]f32 = undefined;
-    var far: [4]f32 = undefined;
-    inline for (0..4) |i| {
-        left[i] = view_proj[3][i] + view_proj[0][i];
-        right[i] = view_proj[3][i] - view_proj[0][i];
+    pub fn init(view_proj: zmath.Mat, normalize: bool) Frustum {
+        var left: [4]f32 = undefined;
+        var right: [4]f32 = undefined;
+        var bottom: [4]f32 = undefined;
+        var top: [4]f32 = undefined;
+        var near: [4]f32 = undefined;
+        var far: [4]f32 = undefined;
+        inline for (0..4) |i| {
+            left[i] = view_proj[3][i] + view_proj[0][i];
+            right[i] = view_proj[3][i] - view_proj[0][i];
 
-        bottom[i] = view_proj[3][i] + view_proj[1][i];
-        top[i] = view_proj[3][i] - view_proj[1][i];
+            bottom[i] = view_proj[3][i] + view_proj[1][i];
+            top[i] = view_proj[3][i] - view_proj[1][i];
 
-        near[i] = view_proj[3][i] + view_proj[2][i];
-        far[i] = view_proj[3][i] - view_proj[2][i];
+            near[i] = view_proj[3][i] + view_proj[2][i];
+            far[i] = view_proj[3][i] - view_proj[2][i];
+        }
+
+        return Frustum{
+            .left = .init(left, normalize),
+            .right = .init(right, normalize),
+            .bottom = .init(bottom, normalize),
+            .top = .init(top, normalize),
+            .near = .init(near, normalize),
+            .far = .init(far, normalize),
+        };
     }
-
-    return Frustum{
-        .left = .init(left, normalize),
-        .right = .init(right, normalize),
-        .bottom = .init(bottom, normalize),
-        .top = .init(top, normalize),
-        .near = .init(near, normalize),
-        .far = .init(far, normalize),
-    };
-}
+};
 
 pub const FrustumCorner = struct {
     pub const PointName = enum(u8) {

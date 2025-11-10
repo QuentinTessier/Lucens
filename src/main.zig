@@ -21,6 +21,7 @@ const Frustum = @import("3D/Frustum.zig");
 const BoundingBox = @import("3D/BoundingBox.zig");
 
 const ShaderCompiler = @import("shader_compiler.zig");
+const LightGenerator = @import("light_generator.zig");
 
 var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
 
@@ -99,12 +100,11 @@ pub fn main() !void {
     };
 
     var prng = std.Random.DefaultPrng.init(blk: {
-        var seed: u64 = undefined;
-        try std.posix.getrandom(std.mem.asBytes(&seed));
-        break :blk seed;
+        // var seed: u64 = 0;
+        // try std.posix.getrandom(std.mem.asBytes(&seed));
+        break :blk 0;
     });
-    const rand = prng.random();
-    _ = rand;
+    const rng = prng.random();
 
     try glfw.init();
     defer glfw.terminate();
@@ -163,14 +163,16 @@ pub fn main() !void {
         .theta = -std.math.pi / 2.0,
     };
     const scene_uniform_cpu = SceneUniform{
-        .view = zmath.lookAtRh(.{ 0, 50, -50, 1 }, .{ 0, 0, 0, 1 }, .{ 0, 1, 0, 0 }),
+        .view = zmath.lookAtRh(.{ 0, 50, 10, 1 }, .{ 0, 0, 0, 1 }, .{ 0, 1, 0, 0 }),
         .proj = camera.getProjection(1280, 720, 45.0),
         .view_pos = .{ camera.position[0], camera.position[1], camera.position[2], 1.0 },
     };
 
-    const view_direction = zmath.normalize4(@Vector(4, f32){ 0, 0, 0, 1 } - @Vector(4, f32){ 0, 0, 10, 1 });
+    const view_direction = zmath.normalize4(
+        @Vector(4, f32){ 0, 0, 0, 1 } - @Vector(4, f32){ 0, 50, 10, 1 },
+    );
     const frustum: Frustum.FrustumCorner = .init(&.{
-        .position = .{ 0, 1, 10, 1 },
+        .position = .{ 0, 50, 10, 1 },
         .view_direction = view_direction,
         .far = 100.1,
     });
@@ -190,20 +192,40 @@ pub fn main() !void {
         .min = near_bottom_left_extended,
     };
 
+    const point_lights = try LightGenerator.generate_n_point_lights(
+        allocator,
+        rng,
+        100,
+        .{
+            frustum_bounding_box.min[0],
+            frustum_bounding_box.min[1],
+            frustum_bounding_box.min[2],
+        },
+        .{
+            frustum_bounding_box.max[0],
+            frustum_bounding_box.max[1],
+            frustum_bounding_box.max[2],
+        },
+    );
+    defer allocator.free(point_lights);
+
     const n_slice: usize = 7;
     var bbs: [n_slice]BoundingBox = undefined;
+
+    const length: @Vector(4, f32) = @abs(@as(@Vector(4, f32), frustum_bounding_box.max) - @as(@Vector(4, f32), frustum_bounding_box.min));
+    const length_per_cluster = length / @as(@Vector(4, f32), @splat(@floatFromInt(n_slice)));
 
     const z_length = @abs(frustum_bounding_box.max[2] - frustum_bounding_box.min[2]);
     const z_length_slice: f32 = z_length / @as(f32, @floatFromInt(n_slice));
     const z_dir = view_direction[2];
     bbs[0] = .{
         .min = frustum_bounding_box.min,
-        .max = .{
+        .max = @Vector(4, f32){
             frustum_bounding_box.max[0],
             frustum_bounding_box.max[1],
-            frustum_bounding_box.min[2] + z_length_slice * z_dir,
+            frustum_bounding_box.min[2],
             1.0,
-        },
+        } + length_per_cluster * view_direction,
     };
     for (1..n_slice) |i| {
         const previous_bb = bbs[i - 1];
@@ -212,43 +234,69 @@ pub fn main() !void {
             previous_bb.min[1],
             previous_bb.max[2],
             1.0,
-        }, .max = .{
+        }, .max = @Vector(4, f32){
             previous_bb.max[0],
             previous_bb.max[1],
-            previous_bb.max[2] + z_length_slice * z_dir,
+            previous_bb.max[2],
             1.0,
-        } };
+        } + length_per_cluster * view_direction };
     }
+
+    const GPUCluster = extern struct {
+        min: [4]f32,
+        max: [4]f32,
+        count: [4]u32,
+        lights: [64]LightSystem.Light,
+    };
+
     const GPUFrustumBoundingBoxes = extern struct {
         count: [4]u32,
         view_dir: [4]f32,
-        bbs: [n_slice][3][4]f32,
+        bbs: [n_slice]GPUCluster,
     };
 
-    const colors: [7][4]f32 = .{
-        .{ 1, 1, 1, 1 },
-        .{ 1, 0, 0, 1 },
-        .{ 0, 1, 0, 1 },
-        .{ 0, 0, 1, 1 },
-        .{ 0, 1, 1, 1 },
-        .{ 1, 1, 0, 1 },
-        .{ 1, 0, 1, 1 },
+    const global_directional_light = LightSystem.DirectionalLight{
+        .color = .{ 1, 1, 1 },
+        .direction = .{ 0.5, -1, 0 },
+        .intensity = 1000.0,
     };
-
-    const gpu_frustum_bounding_boxes: GPUFrustumBoundingBoxes = .{
+    var gpu_frustum_bounding_boxes: GPUFrustumBoundingBoxes = .{
         .count = .{ @intCast(n_slice), @bitCast(z_length_slice), 0, 0 },
         .view_dir = view_direction,
         .bbs = blk: {
-            var buffer: [n_slice][3][4]f32 = undefined;
+            var buffer: [n_slice]GPUCluster = undefined;
             inline for (0..n_slice) |i| {
-                buffer[i][0] = bbs[i].min;
-                buffer[i][1] = bbs[i].max;
-                buffer[i][2] = colors[i];
+                buffer[i].min = bbs[i].min;
+                buffer[i].max = bbs[i].max;
+                buffer[i].count = @splat(1);
+                buffer[i].lights = undefined;
+                buffer[i].lights[0] = global_directional_light.toLight();
             }
             break :blk buffer;
         },
     };
-    var buffer_tmp: Inlucere.Device.MappedBuffer = try .init("scene", GPUFrustumBoundingBoxes, &[1]GPUFrustumBoundingBoxes{gpu_frustum_bounding_boxes}, .ExplicitFlushed, .{});
+
+    // for (point_lights) |*light| {
+    //     const center = light.position;
+    //     const radius = light.radius;
+
+    //     for (&gpu_frustum_bounding_boxes.bbs) |*bb| {
+    //         const bounding_box = BoundingBox{
+    //             .min = bb.min,
+    //             .max = bb.max,
+    //         };
+    //         if (bounding_box.sphere_collision_test(center, radius)) {
+    //             bb.lights[bb.count[0]] = light.*;
+    //             bb.count[0] += 1;
+    //         }
+    //     }
+    // }
+
+    for (&gpu_frustum_bounding_boxes.bbs, 0..) |*bb, i| {
+        std.log.info("Cluster [{}] has {} lights", .{ i, bb.count[0] });
+    }
+
+    var buffer_tmp: Inlucere.Device.MappedBuffer = try .init("GPUFrustumBoundingBoxes", GPUFrustumBoundingBoxes, &[1]GPUFrustumBoundingBoxes{gpu_frustum_bounding_boxes}, .ExplicitFlushed, .{});
     defer buffer_tmp.deinit();
     Inlucere.gl.objectLabel(
         Inlucere.gl.BUFFER,
@@ -283,14 +331,18 @@ pub fn main() !void {
     var suzanne: Mesh = try .initFromObj(allocator, "./assets/meshes/suzanne.obj");
     defer suzanne.deinit(allocator);
 
-    const cat_id: u32 = 3;
-    var cat: Mesh = try load_cat_mesh(allocator);
-    defer cat.deinit(allocator);
+    const sphere_id: u32 = 2;
+    var sphere: Mesh = try .initFromObj(allocator, "./assets/meshes/sphere.obj");
+    defer sphere.deinit(allocator);
+
+    const cube_id: u32 = 3;
+    var cube: Mesh = try .initFromObj(allocator, "./assets/meshes/cube.obj");
+    defer cube.deinit(allocator);
 
     staging_buffer.begin_frame();
     _ = try upload_mesh(allocator, &mesh_manager, &staging_buffer, suzanne_id, &suzanne);
-    //_ = try upload_mesh(allocator, &mesh_manager, &staging_buffer, sphere_id, &sphere);
-    _ = try upload_mesh(allocator, &mesh_manager, &staging_buffer, cat_id, &cat);
+    _ = try upload_mesh(allocator, &mesh_manager, &staging_buffer, sphere_id, &sphere);
+    _ = try upload_mesh(allocator, &mesh_manager, &staging_buffer, cube_id, &cube);
     staging_buffer.end_frame();
 
     const program = try shader_compiler.compile_program(allocator, &.{
@@ -337,19 +389,37 @@ pub fn main() !void {
         _ = try material_system.add_material(allocator, 0, .{
             .color = .{ 1, 1, 1, 1 },
         });
-        _ = try material_system.add_material(allocator, 1, .{
-            .color = .{ 0, 1, 1, 1 },
-        });
 
         try mesh_pipeline.draw_instance(
             allocator,
-            suzanne_id,
-            zmath.translationV(position),
-            1,
+            cube_id,
+            zmath.scaling(150.0, 0.1, 150.0),
+            0,
         );
 
-        // try mesh_pipeline.draw_instance(allocator, sphere_id, zmath.translation(-1.5, 0, 0), 1);
-        // try mesh_pipeline.draw_instance(allocator, sphere_id, zmath.translation(1.5, 0, 0), 1);
+        // for (point_lights) |light| {
+        //     try mesh_pipeline.draw_instance(
+        //         allocator,
+        //         sphere_id,
+        //         zmath.mul(
+        //             zmath.scalingV(@splat(light.radius)),
+        //             zmath.translationV(.{
+        //                 light.position[0],
+        //                 light.position[1],
+        //                 light.position[2],
+        //                 1.0,
+        //             }),
+        //         ),
+        //         1,
+        //     );
+        // }
+
+        // try mesh_pipeline.draw_instance(
+        //     allocator,
+        //     suzanne_id,
+        //     zmath.translationV(position),
+        //     0,
+        // );
 
         mesh_pipeline.end();
         material_system.end(4);

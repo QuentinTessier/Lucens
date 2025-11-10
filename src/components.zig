@@ -1,22 +1,20 @@
 const std = @import("std");
 const math = @import("zmath");
-const TransformComponent = @import("3D/Transform.zig");
 const ecez = @import("ecez");
-
-pub const Components = struct {
-    pub const MaterialID = struct {
-        id: u32,
-    };
-
-    pub const MeshID = struct {
-        id: u32,
-    };
-
-    pub const Transform = TransformComponent;
-};
+const zmath = @import("zmath");
+pub const MeshID = @import("components/mesh_id.zig");
+pub const WorldTransform = @import("components/world_transform.zig");
 
 pub const Storage = ecez.CreateStorage(.{
-    Components.MaterialID,
-    Components.MeshID,
-    Components.Transform,
+    WorldTransform,
+    MeshID,
+});
+
+pub const GraphicUpdateSystem = @import("./system/graphic/update.zig").GraphicUpdateSystem(Storage);
+
+pub const RenderingUpdateEvent = ecez.Event("render_update", .{
+    GraphicUpdateSystem.system,
+}, .{
+    .EventArgument = GraphicUpdateSystem.Arguments,
+    .run_on_main_thread = true,
 });
