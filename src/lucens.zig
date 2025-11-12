@@ -123,7 +123,32 @@ pub fn deinit(self: *LucensEngine) void {
     zglfw.terminate();
 }
 
+pub fn DependecyChainToGraphviz(comptime deps: anytype, opt_names: ?[]const []const u8, writer: std.Io.Writer) !void {
+    if (opt_names) |names| {
+        std.debug.assert(deps.len == names.len);
+        for (deps, names, 0..) |dep, name, id| {
+            try writer.print("{} [label = \"{s}\"]\n", .{ id, name });
+            for (dep.signal_indices) |signaled_id| {
+                try writer.print("{} -> {}\n", .{ id, signaled_id });
+            }
+        }
+    } else {
+        for (deps, 0..) |dep, id| {
+            try writer.print("{}\n", .{id});
+            for (dep.signal_indices) |signaled_id| {
+                try writer.print("{} -> {}\n", .{ id, signaled_id });
+            }
+        }
+    }
+}
+
 pub fn run(self: *LucensEngine) !void {
+    if (@import("builtin").mode == .Debug) {
+        inline for (comptime Scheduler.dumpDependencyChain(.render_update), 0..) |dep, system_index| {
+            std.debug.print("{d}: {any}\n", .{ system_index, dep });
+        }
+    }
+
     var time: f64 = 0.0;
     const fps_target: f64 = 0.016;
     var rendering_time: f64 = fps_target;
