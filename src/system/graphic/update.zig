@@ -10,11 +10,64 @@ const MaterialSystem = @import("../../graphics/material_system.zig");
 
 const Components = @import("../../components.zig");
 
+pub fn GatherMaterialSystem(comptime Storage: type) type {
+    return struct {
+        pub const Arguments = BatchBuildSystem(Storage).Arguments;
+
+        const GatherMaterialSystemQuery = ecez.Query(
+            struct {
+                renderer: *Components.StaticMeshRenderer,
+            },
+            .{},
+            .{},
+        );
+
+        pub fn system(query: *GatherMaterialSystemQuery, args: Arguments) !void {
+            var material_system = args.material_system;
+            while (query.next()) |iter| {
+                const renderer: *const Components.StaticMeshRenderer = iter.renderer;
+
+                if (material_system.materials.getPtr(renderer.material_id)) |mat| {
+                    if (mat.index == null) {
+                        // TODO: Better error handling
+                        mat.index = try material_system.find_slot();
+                    }
+                }
+            }
+        }
+    };
+}
+
+pub fn MaterialUpdateSystem(comptime Storage: type) type {
+    return struct {
+        pub const Arguments = BatchBuildSystem(Storage).Arguments;
+
+        const GatherMaterialSystemQuery = ecez.Query(
+            struct {
+                renderer: *const Components.StaticMeshRenderer,
+            },
+            .{},
+            .{},
+        );
+
+        pub fn system(_: *GatherMaterialSystemQuery, args: Arguments) !void {
+            var material_system = args.material_system;
+            var typed_view = material_system.current_pool.to_typed(MaterialSystem.Material);
+            for (material_system.materials.values()) |mat| {
+                if (mat.index) |index| {
+                    typed_view.memory[index] = mat.material;
+                }
+            }
+        }
+    };
+}
+
 pub fn BatchBuildSystem(comptime _: type) type {
     return struct {
         pub const Arguments = struct {
             allocator: std.mem.Allocator,
             gpu_mesh_manager: *MeshManager,
+            material_system: *MaterialSystem,
             static_geometry_batches: *Batch.StaticGeometryBatches,
             draw_count: *u32, // TODO: Better integration
         };
@@ -32,7 +85,11 @@ pub fn BatchBuildSystem(comptime _: type) type {
         // Figure out how to make this system depend on the material update system but not the material gpu write.
         pub fn system(query: *BatchBuildSystemQuery, args: Arguments) !void {
             const static_geometry_batches = args.static_geometry_batches;
+            const material_system = args.material_system;
 
+            for (static_geometry_batches.batches.values()) |*list| {
+                list.entities.clearRetainingCapacity();
+            }
             while (query.next()) |iter| {
                 const entity: ecez.Entity = iter.entity;
                 const transform: *const Components.WorldTransform = iter.transform;
@@ -43,7 +100,7 @@ pub fn BatchBuildSystem(comptime _: type) type {
                 try batch.add_instance(args.allocator, entity, .{
                     .model_to_world = transform.matrix,
                     .world_to_model = zmath.inverse(transform.matrix),
-                    .material_id = 0, // TODO: Add proper material support
+                    .material_id = try material_system.get_slot(renderer.material_id),
                 });
             }
         }
@@ -123,7 +180,6 @@ pub fn CommandUpdateSystem(comptime Storage: type) type {
         );
 
         pub fn system(_: *CommandUpdateSystemQuery, args: Arguments) !void {
-            std.log.info("Building commands", .{});
             const batches = args.static_geometry_batches.batches.values();
             var commands = args.static_geometry_batches.gpu_commands.memory;
 

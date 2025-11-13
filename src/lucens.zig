@@ -180,6 +180,13 @@ pub fn run(self: *LucensEngine) !void {
         suzanne.deinit(self.allocator);
     }
 
+    _ = try self.graphics_context.material_system.add_material(self.allocator, 0, .{
+        .color = .{ 1, 1, 1, 1 },
+    });
+    _ = try self.graphics_context.material_system.add_material(self.allocator, 1, .{
+        .color = .{ 1, 0, 0, 1 },
+    });
+
     _ = try self.storage.createEntity(.{
         ECS.WorldTransform{
             .matrix = zmath.identity(),
@@ -187,6 +194,14 @@ pub fn run(self: *LucensEngine) !void {
         ECS.StaticMeshRenderer{
             .mesh_id = suzanne_id,
             .material_id = 0,
+        },
+    });
+
+    _ = try self.storage.createEntity(.{
+        ECS.WorldTransform{ .matrix = zmath.translation(5, 0, 0) },
+        ECS.StaticMeshRenderer{
+            .mesh_id = suzanne_id,
+            .material_id = 1,
         },
     });
 
@@ -208,14 +223,11 @@ pub fn run(self: *LucensEngine) !void {
             try self.scheduler.dispatchEvent(&self.storage, .render_update2, ECS.BatchBuildSystem.Arguments{
                 .allocator = self.allocator,
                 .gpu_mesh_manager = &self.graphics_context.mesh_manager,
+                .material_system = &self.graphics_context.material_system,
                 .static_geometry_batches = &self.graphics_context.static_geometry_batches,
                 .draw_count = &static_geometry_draw_count,
             });
             try self.scheduler.waitEvent(.render_update2);
-
-            _ = try self.graphics_context.material_system.add_material(self.allocator, 0, .{
-                .color = .{ 1, 1, 1, 1 },
-            });
 
             self.graphics_context.material_system.end(4);
             self.graphics_context.mesh_pipeline.end();

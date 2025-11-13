@@ -14,12 +14,16 @@ pub const Storage = ecez.CreateStorage(.{
     Material,
 });
 
+pub const GatherMaterialSystem = @import("./system/graphic/update.zig").GatherMaterialSystem(Storage);
+pub const MaterialUpdateSystem = @import("./system/graphic/update.zig").MaterialUpdateSystem(Storage);
 pub const BatchBuildSystem = @import("./system/graphic/update.zig").BatchBuildSystem(Storage);
 pub const InstanceUpdateSystem = @import("./system/graphic/update.zig").InstanceUpdateSystem(Storage);
 pub const OffsetUpdateSystem = @import("./system/graphic/update.zig").OffsetUpdateSystem(Storage);
 pub const CommandUpdateSystem = @import("./system/graphic/update.zig").CommandUpdateSystem(Storage);
 
 pub const RenderingUpdateEvent2 = ecez.Event("render_update2", .{
+    GatherMaterialSystem.system,
+    MaterialUpdateSystem.system,
     BatchBuildSystem.system,
     InstanceUpdateSystem.system,
     OffsetUpdateSystem.system,

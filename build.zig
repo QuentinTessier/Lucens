@@ -1,6 +1,24 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
+    const options = .{
+        .enable_ztracy = b.option(
+            bool,
+            "enable_ztracy",
+            "Enable Tracy profile markers",
+        ) orelse false,
+        .enable_fibers = b.option(
+            bool,
+            "enable_fibers",
+            "Enable Tracy fiber support",
+        ) orelse false,
+        .on_demand = b.option(
+            bool,
+            "on_demand",
+            "Build tracy with TRACY_ON_DEMAND",
+        ) orelse false,
+    };
+
     const target = b.standardTargetOptions(.{});
 
     const optimize = b.standardOptimizeOption(.{});
@@ -33,9 +51,23 @@ pub fn build(b: *std.Build) void {
     // const zstbi = b.dependency("zstbi", .{});
     // exe.root_module.addImport("zstbi", zstbi.module("root"));
 
-    const ecez = b.dependency("ecez", .{});
+    const ecez = b.dependency("ecez", .{
+        .enable_ztracy = options.enable_ztracy,
+        .enable_fibers = options.enable_fibers,
+        .on_demand = options.on_demand,
+    });
     const ecez_module = ecez.module("ecez");
     exe.root_module.addImport("ecez", ecez_module);
+
+    const ztracy_dep = ecez.builder.dependency("ztracy", .{
+        .enable_ztracy = options.enable_ztracy,
+        .enable_fibers = options.enable_fibers,
+        .on_demand = options.on_demand,
+    });
+    const ztracy_module = ztracy_dep.module("root");
+
+    exe.root_module.addImport("ztracy", ztracy_module);
+    exe.linkLibrary(ztracy_dep.artifact("tracy"));
 
     b.installArtifact(exe);
 
