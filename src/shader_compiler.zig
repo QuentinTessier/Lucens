@@ -72,12 +72,12 @@ fn resolve_includes(allocator: std.mem.Allocator, filepath: []const u8, include_
     var reader = file.reader(&buffer);
     const interface = &reader.interface;
 
-    var line_tag_buffer: [512]u8 = undefined;
+    //var line_tag_buffer: [512]u8 = undefined;
     var result: std.array_list.Aligned(u8, null) = .empty;
 
     if (!root_file) {
-        const line_tag = try std.fmt.bufPrint(&line_tag_buffer, "#line {} \"{s}\"\n", .{ 1, path });
-        try result.insertSlice(allocator, 0, line_tag);
+        //const line_tag = try std.fmt.bufPrint(&line_tag_buffer, "#line {} \"{s}\"\n", .{ 1, path });
+        //try result.insertSlice(allocator, 0, line_tag);
     }
 
     var line_number: usize = 1;
@@ -91,8 +91,8 @@ fn resolve_includes(allocator: std.mem.Allocator, filepath: []const u8, include_
             const include_content = try resolve_includes(allocator, include_filepath, include_path, false);
             try result.appendSlice(allocator, include_content);
             allocator.free(include_content);
-            const line_tag = try std.fmt.bufPrint(&line_tag_buffer, "#line {} \"{s}\"\n", .{ line_number + 1, path });
-            try result.appendSlice(allocator, line_tag);
+            //const line_tag = try std.fmt.bufPrint(&line_tag_buffer, "#line {} \"{s}\"\n", .{ line_number + 1, path });
+            //try result.appendSlice(allocator, line_tag);
         } else {
             try result.appendSlice(allocator, line);
             try result.append(allocator, '\n');

@@ -33,7 +33,6 @@ pub fn BatchBuildSystem(comptime _: type) type {
         pub fn system(query: *BatchBuildSystemQuery, args: Arguments) !void {
             const static_geometry_batches = args.static_geometry_batches;
 
-            std.log.info("Building batches", .{});
             while (query.next()) |iter| {
                 const entity: ecez.Entity = iter.entity;
                 const transform: *const Components.WorldTransform = iter.transform;
@@ -47,7 +46,6 @@ pub fn BatchBuildSystem(comptime _: type) type {
                     .material_id = 0, // TODO: Add proper material support
                 });
             }
-            std.log.info("Done building batches", .{});
         }
     };
 }
@@ -71,7 +69,6 @@ pub fn InstanceUpdateSystem(comptime Storage: type) type {
             var instances = args.static_geometry_batches.gpu_instances.memory;
 
             var current_offset: usize = 0;
-            std.log.info("Starting to update Instances", .{});
             for (batches) |*batch| {
                 if (batch.entities.len == 0) continue;
                 const memory: []const Batch.Instance = batch.entities.items(.instance);
@@ -79,7 +76,6 @@ pub fn InstanceUpdateSystem(comptime Storage: type) type {
                 @memcpy(instances[current_offset..batch.entities.len], memory);
                 current_offset += batch.entities.len;
             }
-            std.log.info("Done updating Instances", .{});
         }
     };
 }

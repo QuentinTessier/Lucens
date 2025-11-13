@@ -1,6 +1,6 @@
 #version 460 core
 
-#extension GL_GOOGLE_cpp_style_line_directive : require
+// #extension GL_GOOGLE_cpp_style_line_directive : require
 
 layout(location = 0) in vec3 fWorldPos;
 layout(location = 1) in vec3 fNormal;
