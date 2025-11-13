@@ -15,21 +15,13 @@
             .url = "git+https://github.com/zig-gamedev/zmath#3a5955b2b72cd081563fbb084eff05bffd1e3fbb",
             .hash = "zmath-0.11.0-dev-wjwivdMsAwD-xaLj76YHUq3t9JDH-X16xuMTmnDzqbu2",
         },
-        // .zstbi = .{
-        //     .url = "git+https://github.com/zig-gamedev/zstbi#4fce0ee7ca94bd42536c136d9a369e647bc55b14",
-        //     .hash = "zstbi-0.10.0-AAAAAL2VBwCAQYZQ7se9iRdJUp_RPJmhGBgfrIcVA1_c",
-        // },
-        // .VkRadixSort = .{
-        //     .url = "git+https://github.com/MircoWerner/VkRadixSort#96178e0515292f96de112fea0c1b469416388c7e",
-        //     .hash = "N-V-__8AAAFsDAA_D55xFm9DL12b1dC-5seIGuKXTVEvxXue",
-        // },
-        .ecez = .{
-            .url = "git+https://github.com/Avokadoen/ecez#a7abc6069addd77883a8990e4513af443393b7b9",
-            .hash = "ecez-2.3.0-X-dkoDppBgCz7oVF45Va0GhrdDpcSVphIq8hPs8-k-kX",
-        },
         .zmesh = .{
             .url = "git+https://github.com/zig-gamedev/zmesh#36ec42e7e77b2cade7776eb3e91e3e290293a864",
             .hash = "zmesh-0.11.0-dev-oO3A5rR7CgCTMzfdKOhWW-OIyL4-7mlxXzBef_62fbHb",
+        },
+        .ecez = .{
+            .url = "git+https://github.com/Avokadoen/ecez#9f782ca9a44303aa1cd447678f0715ce5fb51ae5",
+            .hash = "ecez-2.3.0-X-dkoOFrBgCmMZy7Sqi3Uat_oITm3ySyCTbIUDTLDRCK",
         },
     },
     .paths = .{
