@@ -67,18 +67,19 @@ pub fn init(self: *LucensEngine, allocator: std.mem.Allocator, options: Options)
     zglfw.windowHint(.context_version_minor, 6);
     zglfw.windowHint(.opengl_profile, .opengl_core_profile);
     if (builtin.mode == .Debug) zglfw.windowHint(.opengl_debug_context, true);
-    var scheduler: Scheduler = Scheduler.uninitialized;
-    try scheduler.init(.{
-        .pool_allocator = allocator,
-        .query_submit_allocator = allocator,
-    });
     self.* = LucensEngine{
         .allocator = allocator,
         .storage = try .init(allocator),
-        .scheduler = scheduler,
+        .scheduler = .uninitialized,
         .window = try zglfw.createWindow(@intCast(options.screen_width), @intCast(options.screen_height), "Lucens", null),
         .graphics_context = undefined,
     };
+
+    try self.scheduler.init(.{
+        .pool_allocator = allocator,
+        .query_submit_allocator = allocator,
+    });
+
     zglfw.makeContextCurrent(self.window);
     try Inlucere.init(zglfw.getProcAddress);
 
