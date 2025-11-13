@@ -130,7 +130,7 @@ pub fn InstanceUpdateSystem(comptime Storage: type) type {
                 if (batch.entities.len == 0) continue;
                 const memory: []const Batch.Instance = batch.entities.items(.instance);
 
-                @memcpy(instances[current_offset..batch.entities.len], memory);
+                @memcpy(instances[current_offset .. current_offset + batch.entities.len], memory);
                 current_offset += batch.entities.len;
             }
         }

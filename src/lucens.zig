@@ -163,11 +163,11 @@ pub fn run(self: *LucensEngine) !void {
     zglfw.setTime(0.0);
     zglfw.swapInterval(0);
 
+    self.graphics_context.staging_buffer.begin_frame();
     const suzanne_id: u32 = 1;
     {
         var suzanne: Mesh = try .initFromObj(self.allocator, "./assets/meshes/suzanne.obj");
 
-        self.graphics_context.staging_buffer.begin_frame();
         _ = try Example.upload_mesh(
             self.allocator,
             &self.graphics_context.mesh_manager,
@@ -175,10 +175,23 @@ pub fn run(self: *LucensEngine) !void {
             suzanne_id,
             &suzanne,
         );
-
-        self.graphics_context.staging_buffer.end_frame();
         suzanne.deinit(self.allocator);
     }
+
+    const sphere_id: u32 = 2;
+    {
+        var sphere: Mesh = try .initFromObj(self.allocator, "./assets/meshes/sphere.obj");
+
+        _ = try Example.upload_mesh(
+            self.allocator,
+            &self.graphics_context.mesh_manager,
+            &self.graphics_context.staging_buffer,
+            sphere_id,
+            &sphere,
+        );
+        sphere.deinit(self.allocator);
+    }
+    self.graphics_context.staging_buffer.end_frame();
 
     _ = try self.graphics_context.material_system.add_material(self.allocator, 0, .{
         .color = .{ 1, 1, 1, 1 },
@@ -200,7 +213,7 @@ pub fn run(self: *LucensEngine) !void {
     _ = try self.storage.createEntity(.{
         ECS.WorldTransform{ .matrix = zmath.translation(5, 0, 0) },
         ECS.StaticMeshRenderer{
-            .mesh_id = suzanne_id,
+            .mesh_id = sphere_id,
             .material_id = 1,
         },
     });
