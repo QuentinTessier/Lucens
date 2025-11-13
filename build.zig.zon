@@ -4,9 +4,6 @@
     .fingerprint = 0xad973382ee457de7,
     .minimum_zig_version = "0.14.0",
     .dependencies = .{
-        .Inlucere = .{
-            .path = "../Inlucere", // For development purpose, will be pointed to git repository later
-        },
         .zglfw = .{
             .url = "git+https://github.com/zig-gamedev/zglfw#82da052ccace5690f323876046d3062c9c573283",
             .hash = "zglfw-0.10.0-dev-zgVDNK6oIQAamIbSG6JGubpBiQSxrv_lymMIsub2DBNa",
@@ -22,6 +19,10 @@
         .ecez = .{
             .url = "git+https://github.com/Avokadoen/ecez#9f782ca9a44303aa1cd447678f0715ce5fb51ae5",
             .hash = "ecez-2.3.0-X-dkoOFrBgCmMZy7Sqi3Uat_oITm3ySyCTbIUDTLDRCK",
+        },
+        .Inlucere = .{
+            .url = "git+https://github.com/QuentinTessier/Inlucere#dd3d20a16992f51c708c5b603c6ddf82f5d57a7c",
+            .hash = "Inlucere-0.1.0-EolgaT4kCgCXr6ed8r-W7Cr4EQmqCITIA_IiZOzcGrKg",
         },
     },
     .paths = .{
