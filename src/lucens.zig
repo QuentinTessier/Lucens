@@ -12,6 +12,8 @@ const Camera = @import("3D/Camera.zig");
 const MaterialSystem = @import("graphics/material_system.zig");
 const StagingBuffer = @import("graphics/staging_buffer_manager.zig");
 const MeshPipeline = @import("graphics/mesh_pipeline.zig");
+const Batch = @import("graphics/static_geometry_batch.zig");
+const StaticGeometryBatches = @import("graphics/static_geometry_batch.zig").StaticGeometryBatches;
 const MeshManager = @import("graphics/mesh_buffer_manager.zig").MeshManager(u32, Mesh.Vertex);
 
 pub const LucensEngine = @This();
@@ -19,7 +21,7 @@ pub const LucensEngine = @This();
 pub const Storage = @import("components.zig").Storage;
 pub const ECS = @import("components.zig");
 const Scheduler = ecez.CreateScheduler(Storage, .{
-    ECS.RenderingUpdateEvent,
+    ECS.RenderingUpdateEvent2,
 });
 const Events = @import("events.zig");
 
@@ -35,6 +37,7 @@ pub const LucensGraphicsContext = struct {
     mesh_manager: MeshManager,
     material_system: MaterialSystem,
     mesh_pipeline: MeshPipeline,
+    static_geometry_batches: StaticGeometryBatches,
     tmp_main_geometry_vertex_array: Inlucere.Device.VertexArrayObject,
     tmp_scene_buffer: Inlucere.Device.MappedBuffer,
 };
@@ -94,6 +97,7 @@ pub fn init(self: *LucensEngine, allocator: std.mem.Allocator, options: Options)
     try self.graphics_context.material_system.init(allocator);
     self.graphics_context.mesh_pipeline.program = program;
     try self.graphics_context.mesh_pipeline.init(allocator, &self.graphics_context.mesh_manager, &self.graphics_context.material_system);
+    self.graphics_context.static_geometry_batches = .init();
 
     const camera = Camera{
         .position = .{ 10, 0, 0 },
@@ -115,6 +119,7 @@ pub fn deinit(self: *LucensEngine) void {
     self.graphics_context.mesh_pipeline.deinit(self.allocator);
     self.graphics_context.material_system.deinit(self.allocator);
     self.graphics_context.staging_buffer.deinit(self.allocator);
+    self.graphics_context.static_geometry_batches.deinit(self.allocator);
 
     Inlucere.deinit();
     self.storage.deinit();
@@ -144,10 +149,12 @@ pub fn DependecyChainToGraphviz(comptime deps: anytype, opt_names: ?[]const []co
 
 pub fn run(self: *LucensEngine) !void {
     if (@import("builtin").mode == .Debug) {
-        inline for (comptime Scheduler.dumpDependencyChain(.render_update), 0..) |dep, system_index| {
+        inline for (comptime Scheduler.dumpDependencyChain(.render_update2), 0..) |dep, system_index| {
             std.debug.print("{d}: {any}\n", .{ system_index, dep });
         }
     }
+
+    var static_geometry_draw_count: u32 = 0;
 
     var time: f64 = 0.0;
     const fps_target: f64 = 0.016;
@@ -176,8 +183,9 @@ pub fn run(self: *LucensEngine) !void {
         ECS.WorldTransform{
             .matrix = zmath.identity(),
         },
-        ECS.MeshID{
-            .id = suzanne_id,
+        ECS.StaticMeshRenderer{
+            .mesh_id = suzanne_id,
+            .material_id = 0,
         },
     });
 
@@ -191,14 +199,18 @@ pub fn run(self: *LucensEngine) !void {
         rendering_time -= delta_time;
 
         if (rendering_time <= 0.0) {
-            try self.scheduler.dispatchEvent(&self.storage, .render_update, ECS.GraphicUpdateSystem.Arguments{
-                .allocator = self.allocator,
-                .mesh_pipeline = &self.graphics_context.mesh_pipeline,
-            });
-            try self.scheduler.waitEvent(.render_update);
-
             self.graphics_context.mesh_pipeline.begin();
             self.graphics_context.material_system.begin();
+            self.graphics_context.static_geometry_batches.gpu_instances = self.graphics_context.mesh_pipeline.current_mesh_instances_pool.to_typed(Batch.Instance);
+            self.graphics_context.static_geometry_batches.gpu_offsets = self.graphics_context.mesh_pipeline.current_draw_offsets_pool.to_typed(u32);
+            self.graphics_context.static_geometry_batches.gpu_commands = self.graphics_context.mesh_pipeline.current_draw_commands_pool.to_typed(Batch.DrawElementsIndirectCommand);
+            try self.scheduler.dispatchEvent(&self.storage, .render_update2, ECS.BatchBuildSystem.Arguments{
+                .allocator = self.allocator,
+                .gpu_mesh_manager = &self.graphics_context.mesh_manager,
+                .static_geometry_batches = &self.graphics_context.static_geometry_batches,
+                .draw_count = &static_geometry_draw_count,
+            });
+            try self.scheduler.waitEvent(.render_update2);
 
             _ = try self.graphics_context.material_system.add_material(self.allocator, 0, .{
                 .color = .{ 1, 1, 1, 1 },
@@ -206,7 +218,7 @@ pub fn run(self: *LucensEngine) !void {
 
             self.graphics_context.material_system.end(4);
             self.graphics_context.mesh_pipeline.end();
-            self.graphics_context.mesh_pipeline.draw();
+            self.graphics_context.mesh_pipeline.draw(static_geometry_draw_count);
 
             rendering_time = fps_target;
             self.window.swapBuffers();

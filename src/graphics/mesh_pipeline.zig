@@ -5,6 +5,7 @@ const Mesh = @import("../3D/Mesh.zig");
 const zmath = @import("zmath");
 const Inlucere = @import("Inlucere");
 const MaterialSystem = @import("material_system.zig");
+const BufferView = @import("../graphics/buffer_view.zig").BufferView;
 
 pub const MeshPipeline = @This();
 
@@ -36,9 +37,9 @@ mesh_instances_pool: PersistentBufferedPool,
 draw_offsets_pool: PersistentBufferedPool,
 draw_commands_pool: PersistentBufferedPool,
 
-current_mesh_instances_pool: PersistentBufferedPool.AcquirePoolResult,
-current_draw_offsets_pool: PersistentBufferedPool.AcquirePoolResult,
-current_draw_commands_pool: PersistentBufferedPool.AcquirePoolResult,
+current_mesh_instances_pool: BufferView,
+current_draw_offsets_pool: BufferView,
+current_draw_commands_pool: BufferView,
 
 instance_lock: std.Thread.Mutex,
 instances: std.AutoArrayHashMapUnmanaged(u32, std.array_list.Aligned(MeshInstance, null)),
@@ -138,36 +139,36 @@ pub fn draw_instance(self: *MeshPipeline, allocator: std.mem.Allocator, id: u32,
 }
 
 pub fn end(self: *MeshPipeline) void {
-    var commands: std.array_list.Aligned(DrawElementsIndirectCommand, null) = .initBuffer(@ptrCast(@alignCast(self.current_draw_commands_pool.memory)));
-    var offset: std.array_list.Aligned(u32, null) = .initBuffer(@ptrCast(@alignCast(self.current_draw_offsets_pool.memory)));
-    var instances_array: std.array_list.Aligned(MeshInstance, null) = .initBuffer(@ptrCast(@alignCast(self.current_mesh_instances_pool.memory)));
-    var current_offset: u32 = 0;
-    self.instance_lock.lock();
-    for (self.instances.keys(), self.instances.values()) |mesh_id, *instances| {
-        const binding_info = self.gpu_mesh_manager.allocation.get(mesh_id) orelse continue;
-        commands.appendBounded(.{
-            .count = binding_info.index_count,
-            .firstIndex = binding_info.index_offset,
-            .instanceCount = @intCast(instances.items.len),
-            .baseInstance = 0,
-            .baseVertex = @intCast(binding_info.vertex_offset),
-        }) catch {
-            std.log.err("GPU Buffer (Command Buffer) doesn't have enought size", .{});
-            return;
-        };
+    // var commands: std.array_list.Aligned(DrawElementsIndirectCommand, null) = .initBuffer(@ptrCast(@alignCast(self.current_draw_commands_pool.memory)));
+    // var offset: std.array_list.Aligned(u32, null) = .initBuffer(@ptrCast(@alignCast(self.current_draw_offsets_pool.memory)));
+    // var instances_array: std.array_list.Aligned(MeshInstance, null) = .initBuffer(@ptrCast(@alignCast(self.current_mesh_instances_pool.memory)));
+    // var current_offset: u32 = 0;
+    // self.instance_lock.lock();
+    // for (self.instances.keys(), self.instances.values()) |mesh_id, *instances| {
+    //     const binding_info = self.gpu_mesh_manager.allocation.get(mesh_id) orelse continue;
+    //     commands.appendBounded(.{
+    //         .count = binding_info.index_count,
+    //         .firstIndex = binding_info.index_offset,
+    //         .instanceCount = @intCast(instances.items.len),
+    //         .baseInstance = 0,
+    //         .baseVertex = @intCast(binding_info.vertex_offset),
+    //     }) catch {
+    //         std.log.err("GPU Buffer (Command Buffer) doesn't have enought size", .{});
+    //         return;
+    //     };
 
-        offset.appendBounded(current_offset) catch {
-            std.log.err("GPU Buffer (Offsets) doesn't have enought size", .{});
-            return;
-        };
-        current_offset += @intCast(instances.items.len);
-        instances_array.appendSliceBounded(instances.items) catch {
-            std.log.err("GPU Buffer (Instances) doesn't have enought size", .{});
-            return;
-        };
-        instances.clearRetainingCapacity();
-    }
-    self.instance_lock.unlock();
+    //     offset.appendBounded(current_offset) catch {
+    //         std.log.err("GPU Buffer (Offsets) doesn't have enought size", .{});
+    //         return;
+    //     };
+    //     current_offset += @intCast(instances.items.len);
+    //     instances_array.appendSliceBounded(instances.items) catch {
+    //         std.log.err("GPU Buffer (Instances) doesn't have enought size", .{});
+    //         return;
+    //     };
+    //     instances.clearRetainingCapacity();
+    // }
+    // self.instance_lock.unlock();
 
     self.mesh_instances_pool.release_pool();
     Inlucere.gl.bindBufferRange(
@@ -192,8 +193,8 @@ pub fn end(self: *MeshPipeline) void {
     );
 }
 
-pub fn draw(self: *MeshPipeline) void {
-    if (self.instances.count() == 0) {
+pub fn draw(self: *MeshPipeline, draw_count: u32) void {
+    if (draw_count == 0) {
         return;
     }
 
@@ -203,7 +204,7 @@ pub fn draw(self: *MeshPipeline) void {
         Inlucere.gl.TRIANGLES,
         Inlucere.gl.UNSIGNED_INT,
         @ptrFromInt(self.current_draw_commands_pool.offset),
-        @intCast(self.instances.count()),
+        @intCast(draw_count),
         @sizeOf(DrawElementsIndirectCommand),
     );
 }

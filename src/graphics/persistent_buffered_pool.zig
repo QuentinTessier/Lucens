@@ -1,6 +1,8 @@
 const std = @import("std");
 const Inlucere = @import("Inlucere");
 const gl = Inlucere.gl;
+const BufferView = @import("buffer_view.zig").BufferView;
+const TypedBufferView = @import("buffer_view.zig").TypedBufferView;
 
 pub const PersistentBufferedPool = @This();
 
@@ -68,7 +70,7 @@ pub fn wait_for_fence(_: *PersistentBufferedPool, fence: gl.GLsync) void {
     }
 }
 
-pub fn acquire_pool(self: *PersistentBufferedPool, timeout: u64) ?AcquirePoolResult {
+pub fn acquire_pool(self: *PersistentBufferedPool, timeout: u64) ?BufferView {
     self.current_frame = @mod(self.current_frame + 1, self.frame_count);
 
     if (self.frame_syncs.items[@intCast(self.current_frame)]) |fence| {
@@ -80,12 +82,13 @@ pub fn acquire_pool(self: *PersistentBufferedPool, timeout: u64) ?AcquirePoolRes
     }
     const range = self.frame_range(self.current_frame);
     return .{
+        .handle = self.buffer_handle,
         .offset = range[0],
         .memory = self.mapped_memory[@intCast(range[0])..@intCast(range[0] + range[1])],
     };
 }
 
-pub fn acquire_pool_or_wait(self: *PersistentBufferedPool) AcquirePoolResult {
+pub fn acquire_pool_or_wait(self: *PersistentBufferedPool) BufferView {
     self.current_frame = @mod(self.current_frame + 1, self.frame_count);
 
     if (self.frame_syncs.items[@intCast(self.current_frame)]) |fence| {
@@ -95,6 +98,7 @@ pub fn acquire_pool_or_wait(self: *PersistentBufferedPool) AcquirePoolResult {
     }
     const range = self.frame_range(self.current_frame);
     return .{
+        .handle = self.buffer_handle,
         .offset = range[0],
         .memory = self.mapped_memory[@intCast(range[0])..@intCast(range[0] + range[1])],
     };
@@ -104,6 +108,7 @@ pub fn acquire_pool_assume_ready(self: *PersistentBufferedPool) AcquirePoolResul
     self.current_frame = @mod(self.current_frame + 1, self.frame_count);
     const range = self.frame_range(self.current_frame);
     return .{
+        .handle = self.buffer_handle,
         .offset = range[0],
         .memory = self.mapped_memory[@intCast(range[0])..@intCast(range[0] + range[1])],
     };

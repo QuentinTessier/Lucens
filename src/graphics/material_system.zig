@@ -1,6 +1,7 @@
 const std = @import("std");
 const PersistentBufferedPool = @import("persistent_buffered_pool.zig");
 const Inlucere = @import("Inlucere");
+const BufferView = @import("buffer_view.zig").BufferView;
 
 pub const MaterialSystem = @This();
 
@@ -9,7 +10,7 @@ pub const Material = extern struct {
 };
 
 material_pool: PersistentBufferedPool,
-current_pool: PersistentBufferedPool.AcquirePoolResult,
+current_pool: BufferView,
 materials: std.AutoArrayHashMapUnmanaged(u32, Material),
 
 pub fn init(self: *MaterialSystem, allocator: std.mem.Allocator) !void {
