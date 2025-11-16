@@ -9,8 +9,8 @@ pub const name = .graphics;
 pub const Components = .{};
 pub const Events = .{};
 
-pub const DataType = struct {
-    pub fn on_window_event(_: *DataType, payload: *const WindowPayload) void {
+pub const Context = struct {
+    pub fn on_window_event(_: *Context, payload: *const WindowPayload) void {
         switch (payload.*) {
             .resize => |resize| {
                 Inlucere.gl.viewport(0, 0, @intCast(resize.width), @intCast(resize.height));
@@ -19,11 +19,11 @@ pub const DataType = struct {
         }
     }
 
-    pub fn init(_: *DataType, _: std.mem.Allocator) !void {
+    pub fn init(_: *Context, _: std.mem.Allocator) !void {
         try Inlucere.init(glfw.getProcAddress);
     }
 
-    pub fn deinit(_: *DataType, _: std.mem.Allocator) void {
+    pub fn deinit(_: *Context, _: std.mem.Allocator) void {
         Inlucere.deinit();
     }
 };

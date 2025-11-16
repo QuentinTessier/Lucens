@@ -62,7 +62,7 @@ pub fn GatherAllModulesData(comptime Modules: anytype) type {
 
     inline for (Modules) |module| {
         const name: [:0]const u8 = @tagName(module.name);
-        const data: type = module.DataType;
+        const data: type = module.Context;
         fields = fields ++ [_]std.builtin.Type.StructField{.{
             .name = name,
             .type = *data,
@@ -117,7 +117,7 @@ pub fn Application(comptime Modules: anytype) type {
 
             inline for (Modules) |mod| {
                 std.log.info("Initializing {s}", .{@tagName(mod.name)});
-                @field(self.modules, @tagName(mod.name)) = try allocator.create(mod.DataType);
+                @field(self.modules, @tagName(mod.name)) = try allocator.create(mod.Context);
                 try @field(self.modules, @tagName(mod.name)).init(allocator);
             }
         }

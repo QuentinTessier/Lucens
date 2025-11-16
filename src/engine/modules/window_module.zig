@@ -22,14 +22,14 @@ pub const Extent = struct {
     height: u32,
 };
 
-pub const DataType = struct {
+pub const Context = struct {
     window: *glfw.Window,
     extent: Extent,
     focus_state: bool,
     observer: Observer(ObserverEvents),
 
     fn resize_window_event(window: *glfw.Window, width: c_int, height: c_int) callconv(.c) void {
-        const self: *DataType = window.getUserPointer(DataType) orelse return;
+        const self: *Context = window.getUserPointer(Context) orelse return;
 
         self.extent.width = @intCast(width);
         self.extent.height = @intCast(height);
@@ -40,14 +40,14 @@ pub const DataType = struct {
     }
 
     fn focus_window_event(window: *glfw.Window, focus: glfw.Bool) callconv(.c) void {
-        const self: *DataType = window.getUserPointer(DataType) orelse return;
+        const self: *Context = window.getUserPointer(Context) orelse return;
         self.focus_state = focus == glfw.TRUE;
         self.observer.dispatch(&.{
             .focus = self.focus_state,
         });
     }
 
-    pub fn init(self: *DataType, _: std.mem.Allocator) !void {
+    pub fn init(self: *Context, _: std.mem.Allocator) !void {
         try glfw.init();
 
         // TODO: Find a way to pass custom data to modify the version or API (vulkan maybe ..)
@@ -68,17 +68,17 @@ pub const DataType = struct {
         glfw.makeContextCurrent(self.window);
     }
 
-    pub fn deinit(self: *DataType, allocator: std.mem.Allocator) void {
+    pub fn deinit(self: *Context, allocator: std.mem.Allocator) void {
         self.window.destroy();
         self.observer.listeners.deinit(allocator);
         glfw.terminate();
     }
 
-    pub fn poll_events(_: *const DataType) void {
+    pub fn poll_events(_: *const Context) void {
         glfw.pollEvents();
     }
 
-    pub fn swap_buffers(self: *const DataType) void {
+    pub fn swap_buffers(self: *const Context) void {
         glfw.swapBuffers(self.window);
     }
 };

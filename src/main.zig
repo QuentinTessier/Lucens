@@ -11,11 +11,11 @@ var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
 const LucensApplication = Application(.{ WindowModule, GraphicsModule });
 
 pub fn run(self: *LucensApplication) !void {
-    const window_module: *WindowModule.DataType = @field(self.modules, @tagName(WindowModule.name));
+    const window_module: *WindowModule.Context = @field(self.modules, @tagName(WindowModule.name));
     try window_module.observer.add_listener(
         self.allocator,
         @field(self.modules, @tagName(GraphicsModule.name)),
-        @ptrCast(&GraphicsModule.DataType.on_window_event),
+        @ptrCast(&GraphicsModule.Context.on_window_event),
     );
 
     GraphicsModule.gl.clearColor(1.0, 0.0, 0.0, 1.0);
