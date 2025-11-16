@@ -19,12 +19,21 @@ layout(std430, binding = 3) buffer readonly Lights {
     Light lights[];
 };
 
+struct Material {
+    vec4 color;
+    uvec2 normalmap;
+};
+
 layout(std430, binding = 4) buffer readonly Materials {
     vec4 color[];
 };
 
 void main()
 {
+    if (normalmap.x != 0 && normalmap.y != 0) {
+        vec3 normal = texture(sampler2D(normalmap), uv).xyz;
+    }
+
     vec3 norm = normalize(fNormal);
     vec3 view_dir = normalize(view_pos.xyz - fWorldPos);
 

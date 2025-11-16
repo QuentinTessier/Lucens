@@ -15,6 +15,7 @@ const MeshPipeline = @import("graphics/mesh_pipeline.zig");
 const Batch = @import("graphics/static_geometry_batch.zig");
 const StaticGeometryBatches = @import("graphics/static_geometry_batch.zig").StaticGeometryBatches;
 const MeshManager = @import("graphics/mesh_buffer_manager.zig").MeshManager(u32, Mesh.Vertex);
+const PersistentBufferedPool = @import("graphics/persistent_buffered_pool.zig");
 
 pub const LucensEngine = @This();
 
@@ -38,6 +39,7 @@ pub const LucensGraphicsContext = struct {
     material_system: MaterialSystem,
     mesh_pipeline: MeshPipeline,
     static_geometry_batches: StaticGeometryBatches,
+
     tmp_main_geometry_vertex_array: Inlucere.Device.VertexArrayObject,
     tmp_scene_buffer: Inlucere.Device.MappedBuffer,
 };
@@ -54,10 +56,8 @@ pub const Options = struct {
     screen_height: u32 = 720,
 };
 
-fn framebuffer_resize_callback(window: *zglfw.Window, w: c_int, h: c_int) callconv(.c) void {
-    _ = window;
-    _ = w;
-    _ = h;
+fn framebuffer_resize_callback(_: *zglfw.Window, w: c_int, h: c_int) callconv(.c) void {
+    Inlucere.gl.viewport(0, 0, w, h);
 }
 
 pub fn init(self: *LucensEngine, allocator: std.mem.Allocator, options: Options) !void {

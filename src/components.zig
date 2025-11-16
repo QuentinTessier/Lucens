@@ -2,16 +2,16 @@ const std = @import("std");
 const math = @import("zmath");
 const ecez = @import("ecez");
 const zmath = @import("zmath");
-pub const MeshID = @import("components/mesh_id.zig");
 pub const WorldTransform = @import("components/world_transform.zig");
 pub const Material = @import("components/Material.zig");
 pub const StaticMeshRenderer = @import("components/static_mesh_renderer.zig");
+pub const Camera = @import("components/camera.zig");
 
 pub const Storage = ecez.CreateStorage(.{
     WorldTransform,
     StaticMeshRenderer,
-    MeshID,
     Material,
+    Camera,
 });
 
 pub const GatherMaterialSystem = @import("./system/graphic/update.zig").GatherMaterialSystem(Storage);
