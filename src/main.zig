@@ -39,7 +39,14 @@ pub fn main() !void {
     };
 
     var app: LucensApplication = undefined;
-    try app.init(allocator, run);
+    try app.init(allocator, run, .{
+        .{&.{
+            .title = "lucens test application",
+            .width = 600,
+            .height = 600,
+        }},
+        .{},
+    });
     defer app.deinit();
 
     try app.run();

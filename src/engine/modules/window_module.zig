@@ -47,18 +47,29 @@ pub const Context = struct {
         });
     }
 
-    pub fn init(self: *Context, _: std.mem.Allocator) !void {
+    pub const WindowModuleInitArguments = struct {
+        title: [:0]const u8,
+        x: ?u32 = null,
+        y: ?u32 = null,
+        width: u32,
+        height: u32,
+    };
+
+    pub fn init(self: *Context, _: std.mem.Allocator, args: *const WindowModuleInitArguments) !void {
         try glfw.init();
 
         // TODO: Find a way to pass custom data to modify the version or API (vulkan maybe ..)
         glfw.windowHint(.context_version_major, 4);
         glfw.windowHint(.context_version_minor, 6);
         glfw.windowHint(.opengl_profile, .opengl_core_profile);
-        self.window = try glfw.createWindow(1280, 720, "lucens", null);
-        self.extent.width = 1280;
-        self.extent.height = 720;
-        self.extent.x = 0;
-        self.extent.y = 0;
+        self.window = try glfw.createWindow(@intCast(args.width), @intCast(args.height), args.title, null);
+        if (args.x != null and args.y != null) {
+            self.window.setPos(@intCast(args.x.?), @intCast(args.y.?));
+        }
+        self.extent.width = args.width;
+        self.extent.height = args.height;
+        self.extent.x = if (args.x) |x| x else 0;
+        self.extent.y = if (args.y) |y| y else 0;
         self.focus_state = true;
         self.observer.listeners = .empty;
 

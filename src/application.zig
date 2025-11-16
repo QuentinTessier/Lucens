@@ -24,6 +24,7 @@ fn GatherAllComponents(comptime Modules: anytype) type {
             .fields = fields,
             .decls = &.{},
             .is_tuple = true,
+
             .layout = .auto,
         },
     });
@@ -57,6 +58,55 @@ fn GatherAllEvents(comptime Modules: anytype) type {
     });
 }
 
+fn GatherInitArgTuple(comptime init_fn: std.builtin.Type.Fn) type {
+    var fields: []const std.builtin.Type.StructField = &[0]std.builtin.Type.StructField{};
+
+    inline for (init_fn.params[2..], 0..) |param, i| {
+        var num_buf: [128]u8 = undefined;
+        fields = fields ++ [_]std.builtin.Type.StructField{.{
+            .type = param.type.?,
+            .name = std.fmt.bufPrintZ(&num_buf, "{d}", .{i}) catch unreachable,
+            .default_value_ptr = null,
+            .alignment = @alignOf(param.type.?),
+            .is_comptime = false,
+        }};
+    }
+
+    return @Type(.{
+        .@"struct" = .{
+            .fields = fields,
+            .decls = &.{},
+            .is_tuple = true,
+            .layout = .auto,
+        },
+    });
+}
+fn GatherModuleInitArgTuples(comptime Modules: anytype) type {
+    var fields: []const std.builtin.Type.StructField = &[0]std.builtin.Type.StructField{};
+
+    inline for (Modules, 0..) |module, i| {
+        const InitFn: type = @TypeOf(module.Context.init);
+        const ArgTuple: type = GatherInitArgTuple(@typeInfo(InitFn).@"fn");
+        var num_buf: [128]u8 = undefined;
+        fields = fields ++ [_]std.builtin.Type.StructField{.{
+            .type = ArgTuple,
+            .name = std.fmt.bufPrintZ(&num_buf, "{d}", .{i}) catch unreachable,
+            .default_value_ptr = null,
+            .alignment = @alignOf(ArgTuple),
+            .is_comptime = false,
+        }};
+    }
+
+    return @Type(.{
+        .@"struct" = .{
+            .fields = fields,
+            .decls = &.{},
+            .is_tuple = true,
+            .layout = .auto,
+        },
+    });
+}
+
 pub fn GatherAllModulesData(comptime Modules: anytype) type {
     var fields: []const std.builtin.Type.StructField = &[0]std.builtin.Type.StructField{};
 
@@ -72,14 +122,18 @@ pub fn GatherAllModulesData(comptime Modules: anytype) type {
         }};
     }
 
-    return @Type(.{
-        .@"struct" = .{
-            .fields = fields,
-            .decls = &.{},
-            .is_tuple = false,
-            .layout = .auto,
-        },
-    });
+    if (fields.len == 0) {
+        return void;
+    } else {
+        return @Type(.{
+            .@"struct" = .{
+                .fields = fields,
+                .decls = &.{},
+                .is_tuple = false,
+                .layout = .auto,
+            },
+        });
+    }
 }
 
 pub fn Application(comptime Modules: anytype) type {
@@ -87,6 +141,7 @@ pub fn Application(comptime Modules: anytype) type {
         const all_components = GatherAllComponents(Modules);
         const all_events = .{};
         const all_module_data: type = GatherAllModulesData(Modules);
+        const all_init_args = GatherModuleInitArgTuples(Modules);
         const ecez_storage = ecez.CreateStorage(all_components{});
         const ecez_scheduler = ecez.CreateScheduler(ecez_storage, all_events);
 
@@ -97,7 +152,7 @@ pub fn Application(comptime Modules: anytype) type {
 
         custom_run_callback: *const fn (*@This()) anyerror!void,
 
-        pub fn init(self: *@This(), allocator: std.mem.Allocator, run_callback: *const fn (*@This()) anyerror!void) !void {
+        pub fn init(self: *@This(), allocator: std.mem.Allocator, run_callback: *const fn (*@This()) anyerror!void, init_args: all_init_args) !void {
             self.* = .{
                 .allocator = allocator,
                 .scheduler = .uninitialized,
@@ -115,10 +170,11 @@ pub fn Application(comptime Modules: anytype) type {
                 self.scheduler.deinit();
             }
 
-            inline for (Modules) |mod| {
+            inline for (Modules, init_args) |mod, args| {
                 std.log.info("Initializing {s}", .{@tagName(mod.name)});
-                @field(self.modules, @tagName(mod.name)) = try allocator.create(mod.Context);
-                try @field(self.modules, @tagName(mod.name)).init(allocator);
+                const module = &@field(self.modules, @tagName(mod.name));
+                module.* = try allocator.create(mod.Context);
+                try @call(.auto, mod.Context.init, .{ module.*, allocator } ++ if (@TypeOf(args) == void) .{} else args);
             }
         }
 
