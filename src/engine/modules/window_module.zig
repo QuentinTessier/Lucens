@@ -58,7 +58,6 @@ pub const Context = struct {
     pub fn init(self: *Context, _: std.mem.Allocator, args: *const WindowModuleInitArguments) !void {
         try glfw.init();
 
-        // TODO: Find a way to pass custom data to modify the version or API (vulkan maybe ..)
         glfw.windowHint(.context_version_major, 4);
         glfw.windowHint(.context_version_minor, 6);
         glfw.windowHint(.opengl_profile, .opengl_core_profile);
