@@ -12,6 +12,57 @@ pub const SceneTree = struct {
     flat: std.MultiArrayList(SceneNode),
     entity_to_flat: std.AutoArrayHashMapUnmanaged(ecez.Entity, u32),
 
+    pub const ChildIterator = struct {
+        slice: std.MultiArrayList(SceneNode).Slice,
+        end: u32,
+        parent_depth: u32,
+        current: u32 = undefined,
+
+        pub fn next(self: *ChildIterator) ?SceneNode {
+            while (self.current < self.end) {
+                const node = self.slice.get(@intCast(self.current));
+                self.current += node.subtree_size + 1;
+                if (self.parent_depth + 1 == node.depth) {
+                    return node;
+                }
+            }
+            return null;
+        }
+    };
+
+    pub const SubtreeIterator = struct {
+        slice: std.MultiArrayList(SceneNode).Slice,
+        current: u32,
+        end: u32,
+
+        pub fn next(self: *SubtreeIterator) ?SceneNode {
+            if (self.current >= self.end) return null;
+            defer self.current += 1;
+            return self.slice.get(@intCast(self.current));
+        }
+    };
+
+    pub fn children(self: *SceneTree, parent_entity: ecez.Entity) ChildIterator {
+        const parent_idx = self.entity_to_flat.get(parent_entity) orelse @panic("TODO: Better debug. Seems like the parent entity is missing");
+
+        return ChildIterator{
+            .slice = self.flat.slice(),
+            .end = parent_idx + self.flat.items(.subtree_size)[parent_idx] + 1,
+            .parent_depth = self.flat.items(.depth)[parent_idx],
+            .current = parent_idx + 1,
+        };
+    }
+
+    pub fn subtree(self: *SceneTree, root_entity: ecez.Entity) SubtreeIterator {
+        const root_index = self.entity_to_flat.get(root_entity) orelse @panic("TODO: Better debug. Seems like the parent entity is missing");
+
+        return SubtreeIterator{
+            .slice = self.flat.slice(),
+            .current = root_index,
+            .end = root_index + self.flat.items(.subtree_size)[root_index] + 1,
+        };
+    }
+
     pub fn init() SceneTree {
         return .{
             .flat = .empty,
