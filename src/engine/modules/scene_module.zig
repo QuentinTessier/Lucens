@@ -93,6 +93,22 @@ pub const SceneTree = struct {
         }
     }
 
+    pub fn subtree_slice(self: *SceneTree, comptime field: ?std.MultiArrayList(SceneNode).Field, root_entity: ecez.Entity) blk: {
+        if (field) |f| {
+            break :blk []@FieldType(SceneNode, @tagName(f));
+        } else {
+            break :blk std.MultiArrayList(SceneNode).Slice;
+        }
+    } {
+        const root_index = self.entity_to_flat.get(root_entity) orelse @panic("TODO: Better debug. Seems like the parent entity is missing");
+        const root_subtree_size = self.flat.items(.subtree_size)[@intCast(root_index)];
+        if (field) |f| {
+            return self.flat.items(f)[@intCast(root_index)..@intCast(root_index + root_subtree_size + 1)];
+        } else {
+            return self.flat.slice().subslice(@intCast(root_index), @intCast(root_subtree_size + 1));
+        }
+    }
+
     pub fn init() SceneTree {
         return .{
             .flat = .empty,
