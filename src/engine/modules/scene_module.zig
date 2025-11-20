@@ -30,18 +30,6 @@ pub const SceneTree = struct {
         }
     };
 
-    pub const SubtreeIterator = struct {
-        slice: std.MultiArrayList(SceneNode).Slice,
-        current: u32,
-        end: u32,
-
-        pub fn next(self: *SubtreeIterator) ?SceneNode {
-            if (self.current >= self.end) return null;
-            defer self.current += 1;
-            return self.slice.get(@intCast(self.current));
-        }
-    };
-
     pub fn SubtreeIterator(comptime field: ?std.MultiArrayList(SceneNode).Field) type {
         if (field) |f| {
             return struct {
