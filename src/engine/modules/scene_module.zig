@@ -42,6 +42,40 @@ pub const SceneTree = struct {
         }
     };
 
+    pub fn SubtreeIterator(comptime field: ?std.MultiArrayList(SceneNode).Field) type {
+        if (field) |f| {
+            return struct {
+                slice: []@FieldType(SceneNode, @tagName(f)),
+                current: u32,
+                end: u32,
+
+                pub fn next(self: *@This()) ?@FieldType(SceneNode, @tagName(f)) {
+                    if (self.current >= self.end) return null;
+                    defer self.current += 1;
+                    return self.slice[@intCast(self.current)];
+                }
+
+                pub fn next_mutable(self: *@This()) ?*@FieldType(SceneNode, @tagName(f)) {
+                    if (self.current >= self.end) return null;
+                    defer self.current += 1;
+                    return &self.slice[@intCast(self.current)];
+                }
+            };
+        } else {
+            return struct {
+                slice: std.MultiArrayList(SceneNode).Slice,
+                current: u32,
+                end: u32,
+
+                pub fn next(self: *@This()) ?SceneNode {
+                    if (self.current >= self.end) return null;
+                    defer self.current += 1;
+                    return self.slice.get(@intCast(self.current));
+                }
+            };
+        }
+    }
+
     pub fn children(self: *SceneTree, parent_entity: ecez.Entity) ChildIterator {
         const parent_idx = self.entity_to_flat.get(parent_entity) orelse @panic("TODO: Better debug. Seems like the parent entity is missing");
 
@@ -53,14 +87,22 @@ pub const SceneTree = struct {
         };
     }
 
-    pub fn subtree(self: *SceneTree, root_entity: ecez.Entity) SubtreeIterator {
+    pub fn subtree(self: *SceneTree, comptime field: ?std.MultiArrayList(SceneNode).Field, root_entity: ecez.Entity) SubtreeIterator(field) {
         const root_index = self.entity_to_flat.get(root_entity) orelse @panic("TODO: Better debug. Seems like the parent entity is missing");
 
-        return SubtreeIterator{
-            .slice = self.flat.slice(),
-            .current = root_index,
-            .end = root_index + self.flat.items(.subtree_size)[root_index] + 1,
-        };
+        if (field) |f| {
+            return SubtreeIterator(field){
+                .slice = self.flat.items(f),
+                .current = root_index,
+                .end = root_index + self.flat.items(.subtree_size)[root_index] + 1,
+            };
+        } else {
+            return SubtreeIterator(field){
+                .slice = self.flat.slice(),
+                .current = root_index,
+                .end = root_index + self.flat.items(.subtree_size)[root_index] + 1,
+            };
+        }
     }
 
     pub fn init() SceneTree {
@@ -166,12 +208,12 @@ pub const SceneTree = struct {
         }
 
         const subtree_size = self.flat.items(.subtree_size)[target_index] + 1;
-        var subtree = try allocator.alloc(SceneNode, subtree_size);
-        defer allocator.free(subtree);
+        var s = try allocator.alloc(SceneNode, subtree_size);
+        defer allocator.free(s);
 
         for (0..@intCast(subtree_size)) |i| {
             inline for (std.meta.fields(SceneNode), 0..) |field, x| {
-                @field(subtree[i], field.name) = self.flat.items(@enumFromInt(x))[@as(usize, @intCast(target_index)) + i];
+                @field(s[i], field.name) = self.flat.items(@enumFromInt(x))[@as(usize, @intCast(target_index)) + i];
             }
         }
 
@@ -194,16 +236,16 @@ pub const SceneTree = struct {
         const insert_pos = adjusted_parent_idx + self.flat.items(.subtree_size)[adjusted_parent_idx] + 1;
 
         const depth_delta = @as(i32, @intCast(self.flat.items(.depth)[adjusted_parent_idx] + 1)) - @as(i32, @intCast(subtree[0].depth));
-        for (subtree[1..]) |*n| {
+        for (s[1..]) |*n| {
             n.depth = @intCast(@as(i32, @intCast(n.depth)) + depth_delta);
-            const delta_index = @as(i32, @intCast(n.parent_index)) - @as(i32, @intCast(subtree[0].parent_index));
+            const delta_index = @as(i32, @intCast(n.parent_index)) - @as(i32, @intCast(s[0].parent_index));
             n.parent_index = @intCast(@as(i32, @intCast(adjusted_parent_idx)) + delta_index);
         }
-        subtree[0].parent_index = adjusted_parent_idx;
-        subtree[0].depth = @intCast(@as(i32, @intCast(subtree[0].depth)) + depth_delta);
+        s[0].parent_index = adjusted_parent_idx;
+        s[0].depth = @intCast(@as(i32, @intCast(s[0].depth)) + depth_delta);
 
-        var slice = self.flat.slice().subslice(@intCast(insert_pos), subtree.len);
-        for (subtree, 0..) |*n, i| {
+        var slice = self.flat.slice().subslice(@intCast(insert_pos), s.len);
+        for (s, 0..) |*n, i| {
             slice.set(i, n.*);
         }
 
