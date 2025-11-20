@@ -24,142 +24,148 @@ pub const SceneTree = struct {
         self.entity_to_flat.deinit(allocator);
     }
 
-    pub fn get_subtree_range(self: *const SceneTree, index: u32) struct { u32, u32 } {
-        return .{
-            index,
-            index + self.flat.items(.subtree_size)[@intCast(index)],
-        };
-    }
-
-    pub fn get_subtree(self: *const SceneTree, entity: u32) ?struct { u32, u32 } {
-        const index = self.entity_to_flat.get(entity) orelse return null;
-        return self.get_subtree_range(index);
-    }
-
-    pub fn add_node_root(self: *SceneTree, allocator: std.mem.Allocator, entity: u32) !u32 {
-        const node: SceneNode = .{
-            .depth = 0,
-            .subtree_size = 1,
+    pub fn add_node_root(self: *SceneTree, allocator: std.mem.Allocator, entity: ecez.Entity) !void {
+        try self.entity_to_flat.put(allocator, entity, 0);
+        try self.flat.append(allocator, .{
             .parent_index = std.math.maxInt(u32),
+            .depth = 0,
+            .subtree_size = 0,
             .entity = entity,
-        };
-
-        const index = self.flat.len;
-        try self.flat.append(allocator, node);
-        try self.entity_to_flat.put(allocator, entity, @intCast(index));
-
-        return @intCast(index);
+        });
     }
 
-    pub fn add_node_child(self: *SceneTree, allocator: std.mem.Allocator, parent: u32, child: u32) !u32 {
-        const parent_index = self.entity_to_flat.get(parent) orelse return error.missing_entity;
+    pub fn add_node(self: *SceneTree, allocator: std.mem.Allocator, entity: ecez.Entity, parent: ecez.Entity) !u32 {
+        const parent_idx = self.entity_to_flat.get(parent) orelse return error.missing_entity;
 
-        const range = self.get_subtree_range(parent_index);
-        const end = range.@"1";
-        const insert_pos = end;
+        const insert_pos: u32 = 1 + parent_idx + self.flat.items(.subtree_size)[@intCast(parent_idx)];
+        const parent_depth: u32 = self.flat.items(.depth)[@intCast(parent_idx)];
 
-        const node: SceneNode = .{
-            .depth = self.flat.items(.depth)[parent_index] + 1,
-            .subtree_size = 1,
-            .parent_index = parent_index,
-            .entity = child,
-        };
+        try self.flat.insert(allocator, insert_pos, .{
+            .parent_index = parent_idx,
+            .depth = parent_depth + 1,
+            .subtree_size = 0,
+            .entity = entity,
+        });
 
-        try self.flat.insert(allocator, insert_pos, node);
-        try self.entity_to_flat.put(allocator, child, @intCast(insert_pos));
-
-        for (@intCast(insert_pos + 1)..self.flat.len) |i| {
-            const entity: u32 = self.flat.items(.entity)[i];
-            if (self.entity_to_flat.getPtr(entity)) |index| {
-                index.* += 1;
-            } else {
-                unreachable;
-            }
+        const i = insert_pos + 1;
+        for (self.flat.items(.entity)[@intCast(i)..], @intCast(i)..) |e, x| {
+            const ptr = self.entity_to_flat.getPtr(e) orelse return error.missing_entity;
+            ptr.* = @intCast(x);
         }
 
-        var ancestor = parent_index;
-        while (ancestor != std.math.maxInt(u32)) {
-            self.flat.items(.subtree_size)[ancestor] += 1;
-            ancestor = self.flat.items(.parent_index)[ancestor];
+        try self.entity_to_flat.put(allocator, entity, insert_pos);
+
+        var ancestor_idx = parent_idx;
+        if (ancestor_idx != std.math.maxInt(u32)) {
+            while (true) {
+                if (ancestor_idx == std.math.maxInt(u32) or ancestor_idx == self.flat.items(.parent_index)[ancestor_idx]) break;
+                self.flat.items(.subtree_size)[ancestor_idx] += 1;
+                ancestor_idx = self.flat.items(.parent_index)[ancestor_idx];
+            }
         }
 
         return insert_pos;
     }
 
-    fn adjust_subtree_sizes_after_move(self: *SceneTree, old_pos: u32, old_end: u32, new_pos: u32) void {
-        const count = old_end - old_pos;
+    pub fn remove_node(self: *SceneTree, allocator: std.mem.Allocator, entity: ecez.Entity) !bool {
+        const node_idx = self.entity_to_flat.get(entity) orelse return false;
+        if (node_idx == 0) return false;
 
-        var old_parent: u32 = self.flat.items(.parent_index)[old_pos];
-        while (old_parent != std.math.maxInt(u32)) {
-            std.log.info("Old parent: {}", .{self.flat.items(.entity)[old_parent]});
-            self.flat.items(.subtree_size)[old_parent] -= count;
-            old_parent = self.flat.items(.parent_index)[old_parent];
+        const remove_count = self.flat.items(.subtree_size)[node_idx] + 1;
+        var ancestor_idx = self.flat.items(.parent_index)[node_idx];
+        while (ancestor_idx != node_idx) {
+            if (ancestor_idx == std.math.maxInt(u32) or ancestor_idx == self.flat.items(.parent_index)[ancestor_idx]) break;
+            self.flat.items(.subtree_size)[ancestor_idx] -= remove_count;
+            ancestor_idx = self.flat.items(.parent_index)[ancestor_idx];
         }
 
-        var new_parent: u32 = self.flat.items(.parent_index)[new_pos];
-        while (new_parent != std.math.maxInt(u32)) {
-            std.log.info("New parent: {}", .{self.flat.items(.entity)[new_parent]});
-            self.flat.items(.subtree_size)[new_parent] += count;
-            new_parent = self.flat.items(.parent_index)[new_parent];
-        }
-    }
-
-    pub fn reparent2(self: *SceneTree, allocator: std.mem.Allocator, target_index: u32, new_parent_index: u32) !void {
-        if (target_index == new_parent_index) return;
-
-        const target_range = self.get_subtree_range(target_index);
-        const new_parent_range = self.get_subtree_range(new_parent_index);
-        const count: usize = @intCast(target_range.@"1" - target_range.@"0");
-
-        var buffer: std.array_list.Aligned(SceneNode, null) = try .initCapacity(allocator, count);
-        defer buffer.deinit(allocator);
-        const slice = self.flat.slice();
-
-        for (@intCast(target_range.@"0")..@intCast(target_range.@"1")) |i| {
-            buffer.appendAssumeCapacity(slice.get(i));
+        var i: u32 = 0;
+        while (i < remove_count) : (i += 1) {
+            _ = self.entity_to_flat.swapRemove(self.flat.items(.entity)[node_idx + i]);
         }
 
-        {
-            var indices: std.array_list.Aligned(usize, null) = try .initCapacity(allocator, count);
-            defer indices.deinit(allocator);
-
-            for (@intCast(target_range.@"0")..@intCast(target_range.@"1")) |i| {
-                indices.appendAssumeCapacity(i);
+        if (node_idx + remove_count < self.flat.len) {
+            inline for (std.meta.fields(SceneNode), 0..) |field, x| {
+                const src = self.flat.items(@enumFromInt(x))[@intCast(node_idx + remove_count)..];
+                const dst = self.flat.items(@enumFromInt(x))[@intCast(node_idx)..];
+                std.mem.copyForwards(field.type, dst, src);
             }
-
-            self.flat.orderedRemoveMany(indices.items);
+            try self.flat.resize(allocator, self.flat.len - remove_count);
+        } else if (node_idx + remove_count == self.flat.len) {
+            try self.flat.resize(allocator, self.flat.len - remove_count);
         }
 
-        const index = new_parent_range.@"1";
-
-        for (buffer.items, 0..) |*node, i| {
-            const idx: usize = @as(usize, @intCast(index)) + i;
-
-            if (idx > self.flat.len) {
-                try self.flat.append(allocator, node.*);
-            } else {
-                try self.flat.insert(allocator, idx, node.*);
+        i = node_idx;
+        while (i < @as(u32, @intCast(self.flat.len))) : (i += 1) {
+            const entry = try self.entity_to_flat.getOrPut(allocator, self.flat.items(.entity)[i]);
+            if (entry.found_existing) {
+                entry.value_ptr.* = i;
             }
         }
 
-        self.flat.items(.parent_index)[@intCast(index)] = new_parent_index;
-        const old_depth = self.flat.items(.depth)[@intCast(index)];
-        self.flat.items(.depth)[@intCast(index)] = self.flat.items(.depth)[@intCast(new_parent_index)] + 1;
-        const static_offset: i64 = @as(i64, @intCast(old_depth)) - @as(i64, @intCast(self.flat.items(.depth)[@intCast(index)]));
-
-        for (1..count) |i| {
-            const idx: usize = @as(usize, @intCast(index)) + i;
-
-            const offset = self.flat.items(.depth)[idx] - static_offset;
-            self.flat.items(.depth)[idx] = @intCast(offset);
-        }
+        return true;
     }
 
-    pub fn dump(self: *const SceneTree) void {
-        const slice = self.flat.slice();
+    pub fn reparent(self: *SceneTree, allocator: std.mem.Allocator, target_entity: ecez.Entity, new_parent_entity: ecez.Entity) !void {
+        const target_index = self.entity_to_flat.get(target_entity) orelse return error.missing_entity;
+        const new_parent_index = self.entity_to_flat.get(new_parent_entity) orelse return error.missing_entity;
 
-        for (0..slice.len) |i| {
-            std.debug.print("{} : {}\n", .{ i, slice.get(i) });
+        if (target_entity <= new_parent_index and new_parent_index <= target_index + self.flat.items(.subtree_size)[target_index]) {
+            return error.would_cycle;
+        }
+
+        const subtree_size = self.flat.items(.subtree_size)[target_index] + 1;
+        var subtree = try allocator.alloc(SceneNode, subtree_size);
+        defer allocator.free(subtree);
+
+        for (0..@intCast(subtree_size)) |i| {
+            inline for (std.meta.fields(SceneNode), 0..) |field, x| {
+                @field(subtree[i], field.name) = self.flat.items(@enumFromInt(x))[@as(usize, @intCast(target_index)) + i];
+            }
+        }
+
+        const old_parent_index = self.flat.items(.parent_index)[target_index];
+        var ancestor_idx = old_parent_index;
+        while (ancestor_idx != target_index) {
+            if (ancestor_idx == std.math.maxInt(u32) or ancestor_idx == self.flat.items(.parent_index)[ancestor_idx]) break;
+            std.log.info("Changing subtree size for {}", .{ancestor_idx});
+            self.flat.items(.subtree_size)[ancestor_idx] -= subtree_size;
+            ancestor_idx = self.flat.items(.parent_index)[ancestor_idx];
+        }
+
+        inline for (std.meta.fields(SceneNode), 0..) |field, x| {
+            const src = self.flat.items(@enumFromInt(x))[@intCast(target_index + subtree_size)..];
+            const dst = self.flat.items(@enumFromInt(x))[@intCast(target_index)..];
+            std.mem.copyForwards(field.type, dst, src);
+        }
+
+        const adjusted_parent_idx = if (new_parent_entity > target_index) new_parent_index - @as(u32, @intCast(subtree_size)) else self.entity_to_flat.get(new_parent_entity).?;
+        const insert_pos = adjusted_parent_idx + self.flat.items(.subtree_size)[adjusted_parent_idx] + 1;
+
+        const depth_delta = @as(i32, @intCast(self.flat.items(.depth)[adjusted_parent_idx] + 1)) - @as(i32, @intCast(subtree[0].depth));
+        for (subtree[1..]) |*n| {
+            n.depth = @intCast(@as(i32, @intCast(n.depth)) + depth_delta);
+            const delta_index = @as(i32, @intCast(n.parent_index)) - @as(i32, @intCast(subtree[0].parent_index));
+            n.parent_index = @intCast(@as(i32, @intCast(adjusted_parent_idx)) + delta_index);
+        }
+        subtree[0].parent_index = adjusted_parent_idx;
+        subtree[0].depth = @intCast(@as(i32, @intCast(subtree[0].depth)) + depth_delta);
+
+        var slice = self.flat.slice().subslice(@intCast(insert_pos), subtree.len);
+        for (subtree, 0..) |*n, i| {
+            slice.set(i, n.*);
+        }
+
+        ancestor_idx = adjusted_parent_idx;
+        while (true) {
+            if (ancestor_idx == std.math.maxInt(u32) or ancestor_idx == self.flat.items(.parent_index)[ancestor_idx]) break;
+            self.flat.items(.subtree_size)[ancestor_idx] += subtree_size;
+            ancestor_idx = self.flat.items(.parent_index)[ancestor_idx];
+        }
+
+        self.entity_to_flat.clearRetainingCapacity();
+        for (self.flat.items(.entity), 0..) |e, i| {
+            try self.entity_to_flat.put(allocator, e, @intCast(i));
         }
     }
 };
