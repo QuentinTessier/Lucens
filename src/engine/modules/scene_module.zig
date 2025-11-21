@@ -211,6 +211,34 @@ pub const SceneTree = struct {
         return true;
     }
 
+    pub fn shift_by(self: *SceneTree, dst: usize, src: usize, len: usize) void {
+        if (dst == src) {
+            return;
+        }
+
+        inline for (std.meta.fields(SceneNode), 0..) |_, x| {
+            const src_mem = self.flat.items(@enumFromInt(x))[src .. src + len];
+            const dst_mem = self.flat.items(@enumFromInt(x))[dst .. dst + len];
+            @memmove(dst_mem, src_mem);
+        }
+    }
+
+    pub fn fix_parent_indices(self: *SceneTree, forward: bool, start: usize, end: usize, offset: u32, target: u32) void {
+        if (!forward) {
+            for (start..end) |i| {
+                if (self.flat.items(.parent_index)[i] > target) {
+                    self.flat.items(.parent_index)[i] -= @intCast(offset);
+                }
+            }
+        } else {
+            for (start..end) |i| {
+                if (self.flat.items(.parent_index)[i] >= target) {
+                    self.flat.items(.parent_index)[i] += @intCast(offset);
+                }
+            }
+        }
+    }
+
     pub fn reparent(self: *SceneTree, allocator: std.mem.Allocator, target_entity: ecez.Entity, new_parent_entity: ecez.Entity) !void {
         const target_index = self.entity_to_flat.get(target_entity) orelse return error.missing_entity;
         const new_parent_index = self.entity_to_flat.get(new_parent_entity) orelse return error.missing_entity;
@@ -232,29 +260,38 @@ pub const SceneTree = struct {
         const old_parent_index = self.flat.items(.parent_index)[target_index];
         var ancestor_idx = old_parent_index;
         while (ancestor_idx != target_index) {
-            if (ancestor_idx == std.math.maxInt(u32) or ancestor_idx == self.flat.items(.parent_index)[ancestor_idx]) break;
-            std.log.info("Changing subtree size for {}", .{ancestor_idx});
+            if (ancestor_idx > self.flat.len or ancestor_idx == self.flat.items(.parent_index)[ancestor_idx]) break;
             self.flat.items(.subtree_size)[ancestor_idx] -= subtree_size;
             ancestor_idx = self.flat.items(.parent_index)[ancestor_idx];
         }
 
-        inline for (std.meta.fields(SceneNode), 0..) |field, x| {
-            const src = self.flat.items(@enumFromInt(x))[@intCast(target_index + subtree_size)..];
-            const dst = self.flat.items(@enumFromInt(x))[@intCast(target_index)..];
-            std.mem.copyForwards(field.type, dst, src);
+        {
+            const shift_size: usize = self.flat.len - @as(usize, @intCast(target_index + subtree_size));
+            const dst_offset: usize = @intCast(target_index);
+            const src_offset: usize = @intCast(target_index + subtree_size);
+            self.shift_by(dst_offset, src_offset, shift_size);
+            self.fix_parent_indices(dst_offset > src_offset, @intCast(target_index + 1), @as(usize, @intCast(target_index)) + shift_size, subtree_size, target_index);
         }
 
         const adjusted_parent_idx = if (new_parent_entity > target_index) new_parent_index - @as(u32, @intCast(subtree_size)) else self.entity_to_flat.get(new_parent_entity).?;
         const insert_pos = adjusted_parent_idx + self.flat.items(.subtree_size)[adjusted_parent_idx] + 1;
 
-        const depth_delta = @as(i32, @intCast(self.flat.items(.depth)[adjusted_parent_idx] + 1)) - @as(i32, @intCast(subtree[0].depth));
-        for (s[1..]) |*n| {
-            n.depth = @intCast(@as(i32, @intCast(n.depth)) + depth_delta);
-            const delta_index = @as(i32, @intCast(n.parent_index)) - @as(i32, @intCast(s[0].parent_index));
-            n.parent_index = @intCast(@as(i32, @intCast(adjusted_parent_idx)) + delta_index);
+        {
+            const shift_size: usize = self.flat.len - @as(usize, @intCast(subtree_size + insert_pos));
+            const dst_offset: usize = insert_pos + s.len;
+            const src_offset = insert_pos;
+            self.shift_by(dst_offset, src_offset, shift_size);
+            self.fix_parent_indices(dst_offset > src_offset, dst_offset + 1, dst_offset + shift_size, subtree_size, insert_pos);
         }
+
+        const depth_delta = @as(i32, @intCast(self.flat.items(.depth)[adjusted_parent_idx] + 1)) - @as(i32, @intCast(s[0].depth));
         s[0].parent_index = adjusted_parent_idx;
         s[0].depth = @intCast(@as(i32, @intCast(s[0].depth)) + depth_delta);
+        for (s[1..]) |*n| {
+            n.depth = @intCast(@as(i32, @intCast(n.depth)) + depth_delta);
+            const delta_index = @as(i32, @intCast(n.parent_index)) - @as(i32, @intCast(target_index));
+            n.parent_index = @intCast(@as(i32, @intCast(insert_pos)) + delta_index);
+        }
 
         var slice = self.flat.slice().subslice(@intCast(insert_pos), s.len);
         for (s, 0..) |*n, i| {
@@ -263,7 +300,7 @@ pub const SceneTree = struct {
 
         ancestor_idx = adjusted_parent_idx;
         while (true) {
-            if (ancestor_idx == std.math.maxInt(u32) or ancestor_idx == self.flat.items(.parent_index)[ancestor_idx]) break;
+            if (ancestor_idx > self.flat.len or ancestor_idx == self.flat.items(.parent_index)[ancestor_idx]) break;
             self.flat.items(.subtree_size)[ancestor_idx] += subtree_size;
             ancestor_idx = self.flat.items(.parent_index)[ancestor_idx];
         }
