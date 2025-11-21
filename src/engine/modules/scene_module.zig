@@ -176,6 +176,35 @@ pub const SceneTree = struct {
         const node_idx = self.entity_to_flat.get(entity) orelse return false;
         if (node_idx == 0) return false;
 
+        const node = self.flat.get(node_idx);
+        const subtree_size = node.subtree_size;
+
+        const dst_offset: usize = @intCast(node_idx);
+        const src_offset: usize = @intCast(node_idx + 1);
+        const shift_size: usize = self.flat.len - src_offset;
+        self.shift_by(dst_offset, src_offset, shift_size);
+        self.fix_parent_indices(dst_offset > src_offset, dst_offset + 1, dst_offset + shift_size, 1, node_idx);
+        try self.flat.resize(allocator, self.flat.len - 1);
+        for (@intCast(node_idx)..@intCast(node_idx + subtree_size)) |i| {
+            if (self.flat.items(.depth)[i] == node.depth + 1) {
+                self.flat.items(.parent_index)[i] = node.parent_index;
+            }
+            self.flat.items(.depth)[i] -= 1;
+        }
+
+        var ancestor_idx = node.parent_index;
+        while (true) {
+            if (ancestor_idx > self.flat.len or ancestor_idx == self.flat.items(.parent_index)[ancestor_idx]) break;
+            self.flat.items(.subtree_size)[ancestor_idx] -= 1;
+            ancestor_idx = self.flat.items(.parent_index)[ancestor_idx];
+        }
+        return true;
+    }
+
+    pub fn remove_subtree(self: *SceneTree, allocator: std.mem.Allocator, entity: ecez.Entity) !bool {
+        const node_idx = self.entity_to_flat.get(entity) orelse return false;
+        if (node_idx == 0) return false;
+
         const remove_count = self.flat.items(.subtree_size)[node_idx] + 1;
         var ancestor_idx = self.flat.items(.parent_index)[node_idx];
         while (ancestor_idx != node_idx) {
