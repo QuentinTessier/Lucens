@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const ecez = @import("ecez");
 const zmath = @import("zmath");
+const ModuleCollection = @import("engine/module_collection.zig").ModuleCollection;
 const Application = @import("application.zig").Application;
 const glfw = @import("zglfw");
 const WindowModule = @import("engine/modules/window_module.zig");
@@ -9,6 +10,15 @@ const GraphicsModule = @import("engine/modules/graphics_module.zig");
 const DefaultComponents = @import("engine/modules/default_components.zig");
 
 var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
+
+pub const Modules = ModuleCollection(.{
+    DefaultComponents,
+    WindowModule,
+    GraphicsModule,
+});
+
+const AllComponents = Modules.GatherAllComponents();
+const Storage = Modules.StorageType(AllComponents);
 
 const LucensApplication = Application(.{ DefaultComponents, WindowModule, GraphicsModule });
 

@@ -7,7 +7,19 @@ const WindowPayload = @import("./window_module.zig").ObserverEvents;
 pub const name = .graphics;
 
 pub const Components = .{};
-pub const Events = .{};
+
+pub fn Module(comptime Storage: type) type {
+    return struct {
+        pub fn Context() type {
+            return void;
+        }
+
+        pub fn Events() type {
+            // return .{ Event1, Event2, Event3 };
+            return .{};
+        }
+    };
+}
 
 pub const Context = struct {
     pub fn on_window_event(_: *Context, payload: *const WindowPayload) void {

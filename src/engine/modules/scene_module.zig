@@ -10,5 +10,6 @@ pub const Components = .{};
 pub const Events = .{};
 
 pub const Context = struct {
+    mutex: std.Thread.Mutex,
     scene_tree: SceneTree,
 };
