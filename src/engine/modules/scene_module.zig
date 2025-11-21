@@ -144,6 +144,14 @@ pub const SceneTree = struct {
             .entity = entity,
         });
 
+        for (1..self.flat.len) |i| {
+            if (i == insert_pos) continue;
+
+            if (self.flat.items(.parent_index)[i] >= insert_pos) {
+                self.flat.items(.parent_index)[i] += 1;
+            }
+        }
+
         const i = insert_pos + 1;
         for (self.flat.items(.entity)[@intCast(i)..], @intCast(i)..) |e, x| {
             const ptr = self.entity_to_flat.getPtr(e) orelse return error.missing_entity;
