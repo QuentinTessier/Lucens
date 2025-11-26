@@ -1,169 +1,21 @@
 const std = @import("std");
 const ecez = @import("ecez");
 
-fn GatherAllComponents(comptime Modules: anytype) type {
-    var fields: []const std.builtin.Type.StructField = &[0]std.builtin.Type.StructField{};
-
-    var i: usize = 0;
-    inline for (Modules) |module| {
-        inline for (module.Components) |comp| {
-            var num_buf: [128]u8 = undefined;
-            fields = fields ++ [_]std.builtin.Type.StructField{.{
-                .type = type,
-                .name = std.fmt.bufPrintZ(&num_buf, "{d}", .{i}) catch unreachable,
-                .default_value_ptr = &comp,
-                .alignment = @alignOf(type),
-                .is_comptime = true,
-            }};
-            i += 1;
-        }
-    }
-
-    return @Type(.{
-        .@"struct" = .{
-            .fields = fields,
-            .decls = &.{},
-            .is_tuple = true,
-
-            .layout = .auto,
-        },
-    });
-}
-
-fn GatherAllEvents(comptime Modules: anytype) type {
-    var fields: []const std.builtin.Type.StructField = &[0]std.builtin.Type.StructField{};
-
-    var i: usize = 0;
-    inline for (Modules) |module| {
-        inline for (module.Events) |event| {
-            var num_buf: [128]u8 = undefined;
-            fields = fields ++ [_]std.builtin.Type.StructField{.{
-                .type = type,
-                .name = std.fmt.bufPrintZ(&num_buf, "{d}", .{i}) catch unreachable,
-                .default_value_ptr = &event,
-                .alignment = @alignOf(type),
-                .is_comptime = true,
-            }};
-            i += 1;
-        }
-    }
-
-    return @Type(.{
-        .@"struct" = .{
-            .fields = fields,
-            .decls = &.{},
-            .is_tuple = true,
-            .layout = .auto,
-        },
-    });
-}
-
-fn GatherInitArgTuple(comptime init_fn: std.builtin.Type.Fn) type {
-    var fields: []const std.builtin.Type.StructField = &[0]std.builtin.Type.StructField{};
-
-    inline for (init_fn.params[2..], 0..) |param, i| {
-        var num_buf: [128]u8 = undefined;
-        fields = fields ++ [_]std.builtin.Type.StructField{.{
-            .type = param.type.?,
-            .name = std.fmt.bufPrintZ(&num_buf, "{d}", .{i}) catch unreachable,
-            .default_value_ptr = null,
-            .alignment = @alignOf(param.type.?),
-            .is_comptime = false,
-        }};
-    }
-
-    return @Type(.{
-        .@"struct" = .{
-            .fields = fields,
-            .decls = &.{},
-            .is_tuple = true,
-            .layout = .auto,
-        },
-    });
-}
-fn GatherModuleInitArgTuples(comptime Modules: anytype) type {
-    var fields: []const std.builtin.Type.StructField = &[0]std.builtin.Type.StructField{};
-
-    comptime var i = 0;
-    inline for (Modules) |module| {
-        if (@hasDecl(module, "Context")) {
-            const InitFn: type = @TypeOf(module.Context.init);
-            const ArgTuple: type = GatherInitArgTuple(@typeInfo(InitFn).@"fn");
-            var num_buf: [128]u8 = undefined;
-            fields = fields ++ [_]std.builtin.Type.StructField{.{
-                .type = ArgTuple,
-                .name = std.fmt.bufPrintZ(&num_buf, "{d}", .{i}) catch unreachable,
-                .default_value_ptr = null,
-                .alignment = @alignOf(ArgTuple),
-                .is_comptime = false,
-            }};
-            i += 1;
-        }
-    }
-
-    return @Type(.{
-        .@"struct" = .{
-            .fields = fields,
-            .decls = &.{},
-            .is_tuple = true,
-            .layout = .auto,
-        },
-    });
-}
-
-pub fn GatherAllModulesData(comptime Modules: anytype) type {
-    var fields: []const std.builtin.Type.StructField = &[0]std.builtin.Type.StructField{};
-
-    inline for (Modules) |module| {
-        if (@hasDecl(module, "Context")) {
-            const name: [:0]const u8 = @tagName(module.name);
-            const data: type = module.Context;
-            fields = fields ++ [_]std.builtin.Type.StructField{.{
-                .name = name,
-                .type = *data,
-                .default_value_ptr = null,
-                .alignment = @alignOf(*data),
-                .is_comptime = false,
-            }};
-        }
-    }
-
-    if (fields.len == 0) {
-        return void;
-    } else {
-        return @Type(.{
-            .@"struct" = .{
-                .fields = fields,
-                .decls = &.{},
-                .is_tuple = false,
-                .layout = .auto,
-            },
-        });
-    }
-}
-
-pub fn Application(comptime Modules: anytype) type {
+pub fn Application(comptime Storage: type, comptime Scheduler: type, comptime ApplicationContext: type) type {
     return struct {
-        const all_components = GatherAllComponents(Modules);
-        const all_events = .{};
-        const all_module_data: type = GatherAllModulesData(Modules);
-        const all_init_args = GatherModuleInitArgTuples(Modules);
-        const ecez_storage = ecez.CreateStorage(all_components{});
-        const ecez_scheduler = ecez.CreateScheduler(ecez_storage, all_events);
-
         allocator: std.mem.Allocator,
-        storage: ecez_storage,
-        scheduler: ecez_scheduler,
-        modules: all_module_data,
+        storage: Storage,
+        scheduler: Scheduler,
+        context: ApplicationContext,
 
         custom_run_callback: *const fn (*@This()) anyerror!void,
 
-        pub fn init(self: *@This(), allocator: std.mem.Allocator, run_callback: *const fn (*@This()) anyerror!void, init_args: all_init_args) !void {
+        pub fn init(self: *@This(), allocator: std.mem.Allocator, run_callback: *const fn (*@This()) anyerror!void, init_args: ApplicationContext.AllInitArgs) !void {
             self.* = .{
                 .allocator = allocator,
                 .scheduler = .uninitialized,
                 .storage = try .init(allocator),
-                .modules = undefined,
+                .context = undefined,
                 .custom_run_callback = run_callback,
             };
 
@@ -176,25 +28,11 @@ pub fn Application(comptime Modules: anytype) type {
                 self.scheduler.deinit();
             }
 
-            comptime var arg_index = 0;
-            inline for (Modules) |mod| {
-                if (@hasDecl(mod, "Context")) {
-                    const args = init_args[arg_index];
-                    const module = &@field(self.modules, @tagName(mod.name));
-                    module.* = try allocator.create(mod.Context);
-                    try @call(.auto, mod.Context.init, .{ module.*, allocator } ++ if (@TypeOf(args) == void) .{} else args);
-                    arg_index += 1;
-                }
-            }
+            try self.context.init(allocator, init_args);
         }
 
         pub fn deinit(self: *@This()) void {
-            const fields: []const std.builtin.Type.StructField = std.meta.fields(all_module_data);
-            comptime var ite = std.mem.reverseIterator(fields);
-            inline while (ite.next()) |field| {
-                @field(self.modules, field.name).deinit(self.allocator);
-                self.allocator.destroy(@field(self.modules, field.name));
-            }
+            self.context.deinit(self.allocator);
             self.scheduler.deinit();
             self.storage.deinit();
         }

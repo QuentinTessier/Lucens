@@ -12,33 +12,33 @@ const DefaultComponents = @import("engine/modules/default_components.zig");
 var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
 
 pub const Modules = ModuleCollection(.{
-    DefaultComponents,
     WindowModule,
-    GraphicsModule,
 });
 
 const AllComponents = Modules.GatherAllComponents();
 const Storage = Modules.StorageType(AllComponents);
-
-const LucensApplication = Application(.{ DefaultComponents, WindowModule, GraphicsModule });
+const AllEvents = Modules.GatherAllEvents(Storage);
+const Scheduler = Modules.SchedulerType(Storage, AllEvents);
+const ApplicationContext = Modules.ApplicationContext(Storage);
+const LucensApplication = Application(Storage, Scheduler, ApplicationContext);
 
 pub fn run(self: *LucensApplication) !void {
-    const window_module: *WindowModule.Context = @field(self.modules, @tagName(WindowModule.name));
-    try window_module.observer.add_listener(
-        self.allocator,
-        @field(self.modules, @tagName(GraphicsModule.name)),
-        @ptrCast(&GraphicsModule.Context.on_window_event),
-    );
+    const window_module = self.context.get_context(.window);
+    // try window_module.observer.add_listener(
+    //     self.allocator,
+    //     @field(self.context, @tagName(GraphicsModule.name)),
+    //     @ptrCast(&GraphicsModule.Context.on_window_event),
+    // );
 
-    _ = try self.storage.createEntity(.{
-        DefaultComponents.WorldTransform{ .matrix = zmath.identity() },
-    });
+    // _ = try self.storage.createEntity(.{
+    //     DefaultComponents.WorldTransform{ .matrix = zmath.identity() },
+    // });
 
-    GraphicsModule.gl.clearColor(1.0, 0.0, 0.0, 1.0);
+    //GraphicsModule.gl.clearColor(1.0, 0.0, 0.0, 1.0);
     while (!window_module.window.shouldClose()) {
         window_module.poll_events();
 
-        GraphicsModule.gl.clear(GraphicsModule.gl.COLOR_BUFFER_BIT);
+        //GraphicsModule.gl.clear(GraphicsModule.gl.COLOR_BUFFER_BIT);
         window_module.swap_buffers();
     }
 }
@@ -61,7 +61,6 @@ pub fn main() !void {
             .width = 600,
             .height = 600,
         }},
-        .{},
     });
     defer app.deinit();
 

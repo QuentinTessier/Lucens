@@ -17,8 +17,8 @@
             .hash = "zmesh-0.11.0-dev-oO3A5rR7CgCTMzfdKOhWW-OIyL4-7mlxXzBef_62fbHb",
         },
         .ecez = .{
-            .url = "git+https://github.com/Avokadoen/ecez#9f782ca9a44303aa1cd447678f0715ce5fb51ae5",
-            .hash = "ecez-2.3.0-X-dkoOFrBgCmMZy7Sqi3Uat_oITm3ySyCTbIUDTLDRCK",
+            .url = "git+https://github.com/Avokadoen/ecez#d4afecf031c9a46a56bf3df9a5b2c99efefd346e",
+            .hash = "ecez-2.3.0-X-dkoDpoBgBVAK2CvB_e_D3KO8ZDTKhn49QNmmt9Nhxx",
         },
         .Inlucere = .{
             .url = "git+https://github.com/QuentinTessier/Inlucere#dd3d20a16992f51c708c5b603c6ddf82f5d57a7c",
